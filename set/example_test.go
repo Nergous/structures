@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Nergous/maat/set"
+	"github.com/Nergous/structures/set"
 )
 
 // A set stores each value at most once.
@@ -25,12 +25,12 @@ func Example() {
 
 // Of builds a set from explicit values, removing duplicates.
 func ExampleOf() {
-	s := set.Of("go", "maat", "go")
+	s := set.Of("go", "structures", "go")
 
 	out := s.Slice()
 	slices.Sort(out)
 	fmt.Println(out)
-	// Output: [go maat]
+	// Output: [go structures]
 }
 
 // Union returns a new set containing all values from both sets.

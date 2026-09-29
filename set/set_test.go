@@ -108,8 +108,8 @@ func TestSet_OfFrom(t *testing.T) {
 	})
 
 	t.Run("From builds from a slice", func(t *testing.T) {
-		s := From([]string{"go", "go", "maat"})
-		assertSetElements(t, s, "go", "maat")
+		s := From([]string{"go", "go", "structures"})
+		assertSetElements(t, s, "go", "structures")
 	})
 }
 

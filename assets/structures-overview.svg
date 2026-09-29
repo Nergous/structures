@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 530" role="img" aria-labelledby="title desc">
-  <title id="title">Maat containers overview</title>
-  <desc id="desc">Overview of stack, queue, and set packages in the maat Go module.</desc>
+  <title id="title">Structures containers overview</title>
+  <desc id="desc">Overview of stack, queue, and set packages in the structures Go module.</desc>
   <style>
     .bg { fill: #f8fafc; }
     .ink { fill: #111827; }
@@ -26,7 +26,7 @@
   <rect class="bg" width="1200" height="530"/>
 
   <g transform="translate(64 50)">
-    <text class="title ink" x="0" y="0" dominant-baseline="hanging">maat</text>
+    <text class="title ink" x="0" y="0" dominant-baseline="hanging">structures</text>
     <text class="subtitle muted" x="0" y="68">Generic Go containers with small APIs, explicit order, and predictable memory behavior.</text>
   </g>
 

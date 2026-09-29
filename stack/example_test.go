@@ -3,7 +3,7 @@ package stack_test
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/stack"
+	"github.com/Nergous/structures/stack"
 )
 
 // A stack is LIFO (last in, first out): elements come out in the reverse

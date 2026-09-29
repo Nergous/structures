@@ -1,20 +1,19 @@
-# maat
+# structures
 
 Generic, idiomatic data structures for Go — small, allocation-friendly, and
 built on the Go 1.23+ standard library, including range-over-func iterators.
 
-![Maat containers overview](./assets/maat-overview.svg)
+![Structures containers overview](./assets/structures-overview.svg)
 
-![Maat benchmark snapshot](./assets/maat-benchmarks.svg)
+![Structures benchmark snapshot](./assets/structures-benchmarks.svg)
 
-`maat` is a growing collection of generic container types. Each package is
+`structures` is a growing collection of generic container types. Each package is
 self-contained, dependency-free, and documented with runnable examples.
 
-## About Maat
+## About Structures
 
-Maat is named after the ancient Egyptian goddess of truth, justice, order, and
-balance. That is the shape this project aims for: containers with predictable
-behavior, small APIs, and explicit trade-offs instead of hidden machinery.
+Structures aims for containers with predictable behavior, small APIs, and
+explicit trade-offs instead of hidden machinery.
 
 The library is intentionally practical. It does not try to wrap every possible
 data-structure pattern or replace Go slices and maps. Instead, it focuses on the
@@ -39,7 +38,7 @@ Go 1.23+ (for range-over-func iterators). The module targets Go 1.26.
 ## Install
 
 ```go
-import "github.com/Nergous/maat/stack"
+import "github.com/Nergous/structures/stack"
 ```
 
 ## Packages
@@ -54,7 +53,7 @@ More containers are on the way.
 
 ## When to use it
 
-Use Maat when the container itself is part of the program's meaning:
+Use Structures when the container itself is part of the program's meaning:
 
 - a stack for undo history, parser state, tree traversal, or backtracking;
 - a queue for breadth-first traversal, work scheduling, buffering, or staged
@@ -62,7 +61,7 @@ Use Maat when the container itself is part of the program's meaning:
 - future containers where a compact, documented abstraction reads better than
   open-coded slice manipulation.
 
-Plain slices and maps are still the right choice for many jobs. Maat is for the
+Plain slices and maps are still the right choice for many jobs. Structures is for the
 spots where naming the behavior makes the code more obvious and where tested
 edge cases — empty reads, nil receivers, cloning, slicing, capacity control —
 are worth having in one place.
@@ -75,7 +74,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/stack"
+	"github.com/Nergous/structures/stack"
 )
 
 func main() {
@@ -105,7 +104,7 @@ func main() {
 
 ## API promises
 
-Maat packages are designed around a few consistent rules:
+Structures packages are designed around a few consistent rules:
 
 - Read-only methods on nil receivers behave like empty containers.
 - Operations on empty containers are not errors. Methods such as `Peek`, `Pop`,
@@ -131,8 +130,8 @@ Each package ships a detailed README and verified `example_test.go` files that
 render on godoc:
 
 ```sh
-go doc github.com/Nergous/maat/stack          # package overview
-go doc github.com/Nergous/maat/stack Stack    # a type and its methods
+go doc github.com/Nergous/structures/stack          # package overview
+go doc github.com/Nergous/structures/stack Stack    # a type and its methods
 ```
 
 ## License

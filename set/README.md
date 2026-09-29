@@ -2,7 +2,7 @@
 
 A generic, map-backed set of unique comparable values for Go.
 
-It is part of the `maat` data-structures library. The set is small,
+It is part of the `structures` data-structures library. The set is small,
 dependency-free, and follows the same package conventions as `stack` and
 `queue`: nil-safe reads, explicit memory control, non-consuming iteration, and
 standard Go boolean contracts.
@@ -10,7 +10,7 @@ standard Go boolean contracts.
 ## Install
 
 ```go
-import "github.com/Nergous/maat/set"
+import "github.com/Nergous/structures/set"
 ```
 
 Requires Go 1.23+ (for range-over-func). The module targets Go 1.26.
@@ -24,13 +24,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Nergous/maat/set"
+	"github.com/Nergous/structures/set"
 )
 
 func main() {
-	s := set.Of("go", "maat", "go")
+	s := set.Of("go", "structures", "go")
 
-	fmt.Println(s.Contains("maat"))
+	fmt.Println(s.Contains("structures"))
 
 	out := s.Slice()
 	slices.Sort(out) // set iteration order is unspecified
@@ -198,6 +198,6 @@ go test -bench=. -benchmem ./set/...
 View the documentation locally:
 
 ```sh
-go doc github.com/Nergous/maat/set          # package overview
-go doc github.com/Nergous/maat/set Set      # the Set type and its methods
+go doc github.com/Nergous/structures/set          # package overview
+go doc github.com/Nergous/structures/set Set      # the Set type and its methods
 ```

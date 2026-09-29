@@ -2,7 +2,7 @@
 
 A generic, slice-backed ring-buffer **FIFO** (first-in, first-out) queue for Go.
 
-It is part of the `maat` data-structures library. The queue is small,
+It is part of the `structures` data-structures library. The queue is small,
 allocation-friendly, and follows the same standard-library conventions as the
 rest of the collection (the `(value, ok)` contract, explicit memory control,
 non-consuming iteration, and a usable nil/zero value for reads).
@@ -10,7 +10,7 @@ non-consuming iteration, and a usable nil/zero value for reads).
 ## Install
 
 ```go
-import "github.com/Nergous/maat/queue"
+import "github.com/Nergous/structures/queue"
 ```
 
 Requires Go 1.23+. The module targets Go 1.26.
@@ -23,7 +23,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/queue"
+	"github.com/Nergous/structures/queue"
 )
 
 func main() {
@@ -296,8 +296,8 @@ go test -bench=. -benchmem ./queue/...
 View the documentation locally:
 
 ```sh
-go doc github.com/Nergous/maat/queue          # package overview
-go doc github.com/Nergous/maat/queue Queue    # the Queue type and its methods
+go doc github.com/Nergous/structures/queue          # package overview
+go doc github.com/Nergous/structures/queue Queue    # the Queue type and its methods
 ```
 
 The same comments render on pkg.go.dev-style godoc.

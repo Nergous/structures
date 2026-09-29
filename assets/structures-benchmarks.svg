@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
-  <title id="title">Maat benchmark snapshot</title>
-  <desc id="desc">Benchmark snapshot for stack, queue, and set operations in the maat Go module.</desc>
+  <title id="title">Structures benchmark snapshot</title>
+  <desc id="desc">Benchmark snapshot for stack, queue, and set operations in the structures Go module.</desc>
   <style>
     .bg { fill: #fbfaf7; }
     .ink { fill: #14151a; }

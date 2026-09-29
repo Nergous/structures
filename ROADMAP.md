@@ -1,6 +1,6 @@
 # Roadmap
 
-This roadmap describes the public direction for `maat`. It is based on the
+This roadmap describes the public direction for `structures`. It is based on the
 detailed internal planning in [`todo.md`](./todo.md), but keeps the GitHub-facing
 view shorter and easier to scan.
 

@@ -2,14 +2,14 @@
 
 A generic, slice-backed **LIFO** (last-in, first-out) stack for Go.
 
-It is part of the `maat` data-structures library. The stack is small,
+It is part of the `structures` data-structures library. The stack is small,
 allocation-friendly, and uses Go 1.23 range-over-func iterators
 ([`iter.Seq`](https://pkg.go.dev/iter#Seq)) for non-consuming iteration.
 
 ## Install
 
 ```go
-import "github.com/Nergous/maat/stack"
+import "github.com/Nergous/structures/stack"
 ```
 
 Requires Go 1.23+ (for range-over-func). The module targets Go 1.26.
@@ -22,7 +22,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/stack"
+	"github.com/Nergous/structures/stack"
 )
 
 func main() {
@@ -245,8 +245,8 @@ go test -bench=. -benchmem ./stack/...
 View the documentation locally:
 
 ```sh
-go doc github.com/Nergous/maat/stack          # package overview
-go doc github.com/Nergous/maat/stack Stack    # the Stack type and its methods
+go doc github.com/Nergous/structures/stack          # package overview
+go doc github.com/Nergous/structures/stack Stack    # the Stack type and its methods
 ```
 
 The same comments render on pkg.go.dev-style godoc.

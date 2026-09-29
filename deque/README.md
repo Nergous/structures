@@ -2,7 +2,7 @@
 
 A generic, slice-backed ring-buffer **double-ended queue** for Go.
 
-It is part of the `maat` data-structures library. The deque is small,
+It is part of the `structures` data-structures library. The deque is small,
 allocation-friendly, and follows the same standard-library conventions as the
 rest of the collection: `(value, ok)` lookups and removals, explicit memory
 control, non-consuming iteration, and safe nil/zero-value reads.
@@ -10,7 +10,7 @@ control, non-consuming iteration, and safe nil/zero-value reads.
 ## Install
 
 ```go
-import "github.com/Nergous/maat/deque"
+import "github.com/Nergous/structures/deque"
 ```
 
 Requires Go 1.23+ (for range-over-func). The module targets Go 1.26.
@@ -23,7 +23,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/deque"
+	"github.com/Nergous/structures/deque"
 )
 
 func main() {
@@ -317,8 +317,8 @@ go test -bench=. -benchmem ./deque/...
 View the documentation locally:
 
 ```sh
-go doc github.com/Nergous/maat/deque          # package overview
-go doc github.com/Nergous/maat/deque Deque    # the Deque type and its methods
+go doc github.com/Nergous/structures/deque          # package overview
+go doc github.com/Nergous/structures/deque Deque    # the Deque type and its methods
 ```
 
 The same comments render on pkg.go.dev-style godoc.

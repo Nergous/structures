@@ -3,7 +3,7 @@ package deque_test
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/deque"
+	"github.com/Nergous/structures/deque"
 )
 
 // A deque is double-ended: elements can be added and removed from both the

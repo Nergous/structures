@@ -3,7 +3,7 @@ package queue_test
 import (
 	"fmt"
 
-	"github.com/Nergous/maat/queue"
+	"github.com/Nergous/structures/queue"
 )
 
 // A queue is FIFO (first in, first out): elements come out in the same order
