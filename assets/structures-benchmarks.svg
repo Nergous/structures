@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 690" role="img" aria-labelledby="title desc">
   <title id="title">Structures benchmark snapshot</title>
-  <desc id="desc">Benchmark snapshot for stack, queue, and set operations in the structures Go module.</desc>
+  <desc id="desc">Benchmark snapshot for stack, queue, deque, set, and binheap operations in the structures Go module, including binheap compared with container/heap.</desc>
   <style>
     .bg { fill: #fbfaf7; }
     .ink { fill: #14151a; }
@@ -8,8 +8,7 @@
     .panel { fill: #ffffff; stroke: #d9d2c4; stroke-width: 2; }
     .soft { fill: #f1ede5; stroke: #d9d2c4; stroke-width: 1.5; }
     .value { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; }
-    .blue { fill: #2563eb; }
-    .green { fill: #059669; }
+    .violet { fill: #7c3aed; }
     .gold { fill: #d97706; }
     .title { font: 800 42px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .subtitle { font: 500 18px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
@@ -19,11 +18,11 @@
     .code { font: 700 16px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: 0; }
   </style>
 
-  <rect class="bg" width="1200" height="430"/>
+  <rect class="bg" width="1200" height="690"/>
 
   <g transform="translate(64 42)">
     <text class="title ink" x="0" y="0" dominant-baseline="hanging">benchmem snapshot</text>
-    <text class="subtitle muted" x="0" y="56">Windows amd64, Ryzen 7 5800X, go test -bench -benchmem -benchtime=100ms</text>
+    <text class="subtitle muted" x="0" y="64">Windows amd64, Ryzen 7 5800X, go test -bench -benchmem -benchtime=100ms</text>
   </g>
 
   <g transform="translate(64 124)">
@@ -33,11 +32,11 @@
 
     <text class="body ink" x="24" y="104">Peek</text>
     <rect class="value" x="178" y="84" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="104" text-anchor="end">1.41 ns/op</text>
+    <text class="code ink" x="292" y="104" text-anchor="end">1.43 ns/op</text>
 
     <text class="body ink" x="24" y="146">Pop</text>
     <rect class="value" x="178" y="126" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="146" text-anchor="end">1.80 ns/op</text>
+    <text class="code ink" x="292" y="146" text-anchor="end">1.78 ns/op</text>
 
     <text class="body ink" x="24" y="188">All iterator</text>
     <rect class="value" x="178" y="168" width="128" height="28" rx="6"/>
@@ -51,43 +50,95 @@
 
     <text class="body ink" x="24" y="104">Peek</text>
     <rect class="value" x="178" y="84" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="104" text-anchor="end">1.44 ns/op</text>
+    <text class="code ink" x="292" y="104" text-anchor="end">1.39 ns/op</text>
 
     <text class="body ink" x="24" y="146">Pop</text>
     <rect class="value" x="178" y="126" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="146" text-anchor="end">2.02 ns/op</text>
+    <text class="code ink" x="292" y="146" text-anchor="end">2.29 ns/op</text>
 
     <text class="body ink" x="24" y="188">Churn</text>
     <rect class="value" x="178" y="168" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="188" text-anchor="end">5.54 ns/op</text>
+    <text class="code ink" x="292" y="188" text-anchor="end">5.67 ns/op</text>
   </g>
 
   <g transform="translate(806 124)">
+    <rect class="panel" width="330" height="232" rx="8"/>
+    <text class="h2 ink" x="24" y="34">deque</text>
+    <text class="small muted" x="24" y="62">Both ends run in O(1) without allocation.</text>
+
+    <text class="body ink" x="24" y="104">Front</text>
+    <rect class="value" x="178" y="84" width="128" height="28" rx="6"/>
+    <text class="code ink" x="292" y="104" text-anchor="end">1.36 ns/op</text>
+
+    <text class="body ink" x="24" y="146">PopFront</text>
+    <rect class="value" x="178" y="126" width="128" height="28" rx="6"/>
+    <text class="code ink" x="292" y="146" text-anchor="end">2.62 ns/op</text>
+
+    <text class="body ink" x="24" y="188">Both-end churn</text>
+    <rect class="value" x="178" y="168" width="128" height="28" rx="6"/>
+    <text class="code ink" x="292" y="188" text-anchor="end">12.2 ns/op</text>
+  </g>
+
+  <g transform="translate(64 380)">
     <rect class="panel" width="330" height="232" rx="8"/>
     <text class="h2 ink" x="24" y="34">set</text>
     <text class="small muted" x="24" y="62">Lookups are fast and allocation-free.</text>
 
     <text class="body ink" x="24" y="104">Contains hit</text>
     <rect class="value" x="178" y="84" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="104" text-anchor="end">7.85 ns/op</text>
+    <text class="code ink" x="292" y="104" text-anchor="end">7.77 ns/op</text>
 
     <text class="body ink" x="24" y="146">Contains miss</text>
     <rect class="value" x="178" y="126" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="146" text-anchor="end">7.50 ns/op</text>
+    <text class="code ink" x="292" y="146" text-anchor="end">7.80 ns/op</text>
 
     <text class="body ink" x="24" y="188">Add existing</text>
     <rect class="value" x="178" y="168" width="128" height="28" rx="6"/>
-    <text class="code ink" x="292" y="188" text-anchor="end">7.96 ns/op</text>
+    <text class="code ink" x="292" y="188" text-anchor="end">7.63 ns/op</text>
   </g>
 
-  <g transform="translate(64 378)">
-    <rect class="soft" x="0" y="0" width="260" height="34" rx="8"/>
-    <rect class="soft" x="280" y="0" width="270" height="34" rx="8"/>
-    <rect class="soft" x="570" y="0" width="262" height="34" rx="8"/>
-    <rect class="soft" x="852" y="0" width="284" height="34" rx="8"/>
-    <text class="small ink" x="130" y="22" text-anchor="middle">Peek/Pop: 0 B/op</text>
-    <text class="small ink" x="415" y="22" text-anchor="middle">All iterators: 0 allocs/op</text>
-    <text class="small ink" x="701" y="22" text-anchor="middle">Slice(1024): 1 alloc</text>
-    <text class="small ink" x="994" y="22" text-anchor="middle">Values vary by machine</text>
+  <g transform="translate(435 380)">
+    <rect class="panel" width="330" height="232" rx="8"/>
+    <text class="h2 ink" x="24" y="34">binheap</text>
+    <text class="small muted" x="24" y="62">O(log n) sifts with zero allocations, n=4096.</text>
+
+    <text class="body ink" x="24" y="104">Peek</text>
+    <rect class="value" x="178" y="84" width="128" height="28" rx="6"/>
+    <text class="code ink" x="292" y="104" text-anchor="end">1.40 ns/op</text>
+
+    <text class="body ink" x="24" y="146">Push</text>
+    <rect class="value" x="178" y="126" width="128" height="28" rx="6"/>
+    <text class="code ink" x="292" y="146" text-anchor="end">19.6 ns/op</text>
+
+    <text class="body ink" x="24" y="188">Pop</text>
+    <rect class="value" x="178" y="168" width="128" height="28" rx="6"/>
+    <text class="code ink" x="292" y="188" text-anchor="end">87.2 ns/op</text>
+  </g>
+
+  <g transform="translate(806 380)">
+    <rect class="panel" width="330" height="232" rx="8"/>
+    <text class="h2 ink" x="24" y="34">vs container/heap</text>
+    <text class="small muted" x="24" y="62">One Push plus one Pop, heap of 4096 ints.</text>
+
+    <text class="body ink" x="24" y="100">binheap</text>
+    <text class="code ink" x="306" y="100" text-anchor="end">74.0 ns/op</text>
+    <rect class="violet" x="24" y="110" width="155" height="20" rx="4"/>
+
+    <text class="body ink" x="24" y="160">container/heap</text>
+    <text class="code ink" x="306" y="160" text-anchor="end">134.8 ns/op</text>
+    <rect class="gold" x="24" y="170" width="282" height="20" rx="4"/>
+
+    <text class="small muted" x="24" y="216">0 vs 1 allocs/op: no boxing in any.</text>
+  </g>
+
+  <g transform="translate(64 634)">
+    <rect class="soft" x="0" y="0" width="253" height="34" rx="8"/>
+    <rect class="soft" x="273" y="0" width="253" height="34" rx="8"/>
+    <rect class="soft" x="546" y="0" width="253" height="34" rx="8"/>
+    <rect class="soft" x="819" y="0" width="253" height="34" rx="8"/>
+    <text class="small ink" x="126.5" y="22" text-anchor="middle">Peek/Pop: 0 B/op</text>
+    <text class="small ink" x="399.5" y="22" text-anchor="middle">All iterators: 0 allocs/op</text>
+    <text class="small ink" x="672.5" y="22" text-anchor="middle">Slice: 1 alloc</text>
+    <text class="small ink" x="945.5" y="22" text-anchor="middle">Values vary by machine</text>
   </g>
 </svg>

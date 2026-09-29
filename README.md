@@ -47,7 +47,9 @@ import "github.com/Nergous/structures/stack"
 | ------------------ | ------------------------------------------------------------- | ----------------------------- |
 | [`stack`](./stack) | Generic, slice-backed LIFO stack with non-consuming iteration. | [README](./stack/README.md) |
 | [`queue`](./queue) | Generic, slice-backed FIFO queue with non-consuming iteration. | [README](./queue/README.md) |
+| [`deque`](./deque) | Generic ring-buffer double-ended queue with O(1) push and pop at both ends. | [README](./deque/README.md) |
 | [`set`](./set)     | Generic, map-backed set with unordered iteration and set algebra. | [README](./set/README.md) |
+| [`binheap`](./binheap) | Generic binary heap: min, max, or custom order; type-safe `container/heap` replacement. | [README](./binheap/README.md) |
 
 More containers are on the way.
 
@@ -58,6 +60,10 @@ Use Structures when the container itself is part of the program's meaning:
 - a stack for undo history, parser state, tree traversal, or backtracking;
 - a queue for breadth-first traversal, work scheduling, buffering, or staged
   processing;
+- a deque for sliding windows, work stealing, or histories that grow and trim
+  from both ends;
+- a heap for priority scheduling, top-k selection, shortest paths, or merging
+  sorted streams;
 - future containers where a compact, documented abstraction reads better than
   open-coded slice manipulation.
 

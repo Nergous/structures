@@ -11,7 +11,9 @@ stay dependency-free, idiomatic, and easy to audit.
 
 - `stack`: generic slice-backed LIFO stack.
 - `queue`: generic slice-backed FIFO queue.
+- `deque`: generic ring-buffer double-ended queue.
 - `set`: generic map-backed set with unordered iteration and set algebra.
+- `binheap`: generic binary heap with min, max, or custom order.
 
 Before the first tagged release, these packages should be treated as the API
 baseline for naming, nil behavior, docs, examples, tests, and benchmarks.

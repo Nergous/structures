@@ -1,48 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 530" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 826" role="img" aria-labelledby="title desc">
   <title id="title">Structures containers overview</title>
-  <desc id="desc">Overview of stack, queue, and set packages in the structures Go module.</desc>
+  <desc id="desc">Overview of stack, queue, deque, set, and binheap packages in the structures Go module.</desc>
   <style>
     .bg { fill: #f8fafc; }
     .ink { fill: #111827; }
     .muted { fill: #64748b; }
     .panel { fill: #ffffff; stroke: #d8e0ea; stroke-width: 2; }
+    .ghost { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 2; stroke-dasharray: 8 6; }
     .rail { fill: #edf2f7; stroke: #cbd5e1; stroke-width: 1.5; }
     .blueSoft { fill: #dbeafe; stroke: #2563eb; stroke-width: 2; }
     .greenSoft { fill: #d1fae5; stroke: #059669; stroke-width: 2; }
+    .amberSoft { fill: #fef3c7; stroke: #d97706; stroke-width: 2; }
+    .violetSoft { fill: #ede9fe; stroke: #7c3aed; stroke-width: 2; }
+    .edge { stroke: #a78bfa; stroke-width: 2.5; }
     .title { font: 800 52px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .subtitle { font: 500 21px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .h2 { font: 800 28px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .body { font: 600 17px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .small { font: 600 15px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .code { font: 700 18px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: 0; }
+    .codeSmall { font: 700 16px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; letter-spacing: 0; }
     .arrow { fill: none; stroke: #64748b; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
   </style>
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
-      <path d="M0 0 12 5 0 10Z" fill="#64748b"/>
+    <marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M0 0 16 7 0 14Z" fill="#64748b"/>
     </marker>
   </defs>
 
-  <rect class="bg" width="1200" height="530"/>
+  <rect class="bg" width="1200" height="826"/>
 
   <g transform="translate(64 50)">
     <text class="title ink" x="0" y="0" dominant-baseline="hanging">structures</text>
-    <text class="subtitle muted" x="0" y="68">Generic Go containers with small APIs, explicit order, and predictable memory behavior.</text>
+    <text class="subtitle muted" x="0" y="76">Generic Go containers with small APIs, explicit order, and predictable memory behavior.</text>
   </g>
 
   <g transform="translate(64 152)">
     <rect class="panel" width="330" height="272" rx="8"/>
     <text class="h2 ink" x="24" y="34">stack&lt;T&gt;</text>
     <text class="body muted" x="24" y="66">LIFO: last in, first out</text>
-    <g transform="translate(56 102)">
-      <rect class="blueSoft" x="46" y="0" width="84" height="36" rx="6"/>
-      <rect class="blueSoft" x="46" y="43" width="84" height="36" rx="6"/>
-      <rect class="blueSoft" x="46" y="86" width="84" height="36" rx="6"/>
-      <text class="code ink" x="88" y="24" text-anchor="middle">3</text>
-      <text class="code ink" x="88" y="67" text-anchor="middle">2</text>
-      <text class="code ink" x="88" y="110" text-anchor="middle">1</text>
-      <path class="arrow" marker-end="url(#arrow)" d="M166 18H236"/>
-      <text class="code ink" x="248" y="24">Pop 3</text>
+    <g transform="translate(56 90)">
+      <rect class="blueSoft" x="46" y="0" width="84" height="32" rx="6"/>
+      <rect class="blueSoft" x="46" y="38" width="84" height="32" rx="6"/>
+      <rect class="blueSoft" x="46" y="76" width="84" height="32" rx="6"/>
+      <text class="code ink" x="88" y="22" text-anchor="middle">3</text>
+      <text class="code ink" x="88" y="60" text-anchor="middle">2</text>
+      <text class="code ink" x="88" y="98" text-anchor="middle">1</text>
+      <path class="arrow" marker-end="url(#arrow)" d="M146 16H196"/>
+      <text class="code ink" x="206" y="22">Pop 3</text>
     </g>
     <text class="small muted" x="24" y="220">Push 1, 2, 3</text>
     <text class="small muted" x="24" y="244">Range: 3, 2, 1</text>
@@ -52,12 +57,12 @@
     <rect class="panel" width="330" height="272" rx="8"/>
     <text class="h2 ink" x="24" y="34">queue&lt;T&gt;</text>
     <text class="body muted" x="24" y="66">FIFO: first in, first out</text>
-    <g transform="translate(34 124)">
-      <path class="arrow" marker-end="url(#arrow)" d="M0 18H44"/>
+    <g transform="translate(12 124)">
+      <path class="arrow" marker-end="url(#arrow)" d="M4 18H44"/>
       <rect class="greenSoft" x="56" y="0" width="62" height="36" rx="6"/>
       <rect class="greenSoft" x="126" y="0" width="62" height="36" rx="6"/>
       <rect class="greenSoft" x="196" y="0" width="62" height="36" rx="6"/>
-      <path class="arrow" marker-end="url(#arrow)" d="M270 18H308"/>
+      <path class="arrow" marker-end="url(#arrow)" d="M266 18H300"/>
       <text class="code ink" x="87" y="24" text-anchor="middle">1</text>
       <text class="code ink" x="157" y="24" text-anchor="middle">2</text>
       <text class="code ink" x="227" y="24" text-anchor="middle">3</text>
@@ -67,6 +72,26 @@
   </g>
 
   <g transform="translate(806 152)">
+    <rect class="panel" width="330" height="272" rx="8"/>
+    <text class="h2 ink" x="24" y="34">deque&lt;T&gt;</text>
+    <text class="body muted" x="24" y="66">double-ended: O(1) at both ends</text>
+    <g transform="translate(12 124)">
+      <path class="arrow" marker-end="url(#arrow)" d="M4 8H44"/>
+      <path class="arrow" marker-end="url(#arrow)" d="M44 28H8"/>
+      <rect class="amberSoft" x="56" y="0" width="62" height="36" rx="6"/>
+      <rect class="amberSoft" x="126" y="0" width="62" height="36" rx="6"/>
+      <rect class="amberSoft" x="196" y="0" width="62" height="36" rx="6"/>
+      <path class="arrow" marker-end="url(#arrow)" d="M302 8H266"/>
+      <path class="arrow" marker-end="url(#arrow)" d="M266 28H300"/>
+      <text class="code ink" x="87" y="24" text-anchor="middle">1</text>
+      <text class="code ink" x="157" y="24" text-anchor="middle">2</text>
+      <text class="code ink" x="227" y="24" text-anchor="middle">3</text>
+    </g>
+    <text class="small muted" x="24" y="220">PushFront, PushBack</text>
+    <text class="small muted" x="24" y="244">PopFront 1, PopBack 3</text>
+  </g>
+
+  <g transform="translate(64 448)">
     <rect class="panel" width="330" height="272" rx="8"/>
     <text class="h2 ink" x="24" y="34">set&lt;T&gt;</text>
     <text class="body muted" x="24" y="66">membership and set algebra</text>
@@ -81,7 +106,47 @@
     <text class="small muted" x="24" y="244">Union, Intersect, Difference</text>
   </g>
 
-  <g transform="translate(64 456)">
+  <g transform="translate(435 448)">
+    <rect class="panel" width="330" height="272" rx="8"/>
+    <text class="h2 ink" x="24" y="34">binheap&lt;T&gt;</text>
+    <text class="body muted" x="24" y="66">priority order: least on top</text>
+    <line class="edge" x1="120" y1="104" x2="76" y2="146"/>
+    <line class="edge" x1="120" y1="104" x2="164" y2="146"/>
+    <line class="edge" x1="76" y1="146" x2="48" y2="186"/>
+    <line class="edge" x1="76" y1="146" x2="104" y2="186"/>
+    <line class="edge" x1="164" y1="146" x2="164" y2="186"/>
+    <circle class="violetSoft" cx="120" cy="104" r="17"/>
+    <circle class="violetSoft" cx="76" cy="146" r="17"/>
+    <circle class="violetSoft" cx="164" cy="146" r="17"/>
+    <circle class="violetSoft" cx="48" cy="186" r="15"/>
+    <circle class="violetSoft" cx="104" cy="186" r="15"/>
+    <circle class="violetSoft" cx="164" cy="186" r="15"/>
+    <text class="code ink" x="120" y="110" text-anchor="middle">1</text>
+    <text class="code ink" x="76" y="152" text-anchor="middle">3</text>
+    <text class="code ink" x="164" y="152" text-anchor="middle">2</text>
+    <text class="codeSmall ink" x="48" y="191" text-anchor="middle">7</text>
+    <text class="codeSmall ink" x="104" y="191" text-anchor="middle">4</text>
+    <text class="codeSmall ink" x="164" y="191" text-anchor="middle">5</text>
+    <path class="arrow" marker-end="url(#arrow)" d="M148 104H218"/>
+    <text class="code ink" x="230" y="110">Pop 1</text>
+    <text class="small muted" x="24" y="220">min, max, or custom comparator</text>
+    <text class="small muted" x="24" y="244">Pop: 1, 2, 3, 4, 5, 7</text>
+  </g>
+
+  <g transform="translate(806 448)">
+    <rect class="ghost" width="330" height="272" rx="8"/>
+    <text class="h2 muted" x="24" y="34">next up</text>
+    <text class="body muted" x="24" y="66">from the roadmap</text>
+    <text class="codeSmall ink" x="24" y="110">bitset</text>
+    <text class="codeSmall ink" x="24" y="140">pqueue</text>
+    <text class="codeSmall ink" x="24" y="170">orderedmap</text>
+    <text class="codeSmall ink" x="176" y="110">orderedset</text>
+    <text class="codeSmall ink" x="176" y="140">sortedmap</text>
+    <text class="codeSmall ink" x="176" y="170">sortedset</text>
+    <text class="small muted" x="24" y="244">See ROADMAP.md</text>
+  </g>
+
+  <g transform="translate(64 752)">
     <rect class="rail" x="0" y="0" width="176" height="40" rx="8"/>
     <rect class="rail" x="196" y="0" width="202" height="40" rx="8"/>
     <rect class="rail" x="418" y="0" width="150" height="40" rx="8"/>
