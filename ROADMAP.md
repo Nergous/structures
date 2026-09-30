@@ -14,6 +14,8 @@ stay dependency-free, idiomatic, and easy to audit.
 - `deque`: generic ring-buffer double-ended queue.
 - `set`: generic map-backed set with unordered iteration and set algebra.
 - `binheap`: generic binary heap with min, max, or custom order.
+- `pqueue`: generic keyed priority queue with O(log n) priority updates and
+  removal by key.
 
 Before the first tagged release, these packages should be treated as the API
 baseline for naming, nil behavior, docs, examples, tests, and benchmarks.
@@ -62,7 +64,6 @@ containers collection:
 | `deque`      | `Deque[T]`            | Growable ring-buffer double-ended queue; O(1) push/pop at both ends. |
 | `orderedmap` | `Map[K, V]`           | Insertion-order preserving hash map. |
 | `orderedset` | `Set[T]`              | Insertion-order preserving set. |
-| `pqueue`     | `PriorityQueue[E, P]` | Element/priority queue, built as a thin API over heap behavior. |
 | `sortedmap`  | `SortedMap[K, V]`     | Key-ordered map with navigation, rank/select, and ranges. |
 | `sortedset`  | `SortedSet[T]`        | Ordered set with algebra and navigation. |
 
@@ -74,7 +75,6 @@ Useful general-purpose containers that should follow after P0:
 | ------------ | ----------------------- | ------- |
 | `bloom`      | `Filter[T]`             | Generic Bloom filter via `maphash.Comparable`. |
 | `counter`    | `Counter[T]`            | Map-backed multiset / frequency counter. |
-| `iheap`      | `IndexedHeap[K, P]`     | Updatable priority queue keyed by unique values. |
 | `list`       | `List[T]`, `Element[T]` | Generic doubly linked list with element handles and splicing. |
 | `lru`        | `Cache[K, V]`           | Fixed-capacity LRU cache with O(1) operations and eviction callback. |
 | `multimap`   | `Multimap[K, V]`        | One key to many values, slice-valued, per-key insertion order. |
@@ -113,6 +113,9 @@ case:
 These are intentionally not planned as standalone public packages right now:
 
 - `multiset.Multiset`: merged into `counter.Counter`.
+- `iheap.IndexedHeap`: merged into `pqueue.PriorityQueue`, which is keyed by
+  unique values. Duplicate elements with separate priorities are covered by
+  `binheap` with a comparator.
 - Skip list: overlaps with sorted B-tree structures, with worse cache locality
   for the single-goroutine use cases here.
 - Singly linked list: no clear win over `list.List`, slices, stack, or queue.
