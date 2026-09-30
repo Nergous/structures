@@ -8,10 +8,12 @@
 // Functions come in two flavors. The plain ones (Heapify, Up, Down, Fix,
 // RemoveAt) only reorder elements and are the hot path for binheap. The Moved
 // variants take a moved callback, invoked as moved(s, i) every time an element
-// lands at index i, so callers such as pqueue can track element positions. The
-// callback fires for both elements of every swap, and for the tail element that
-// RemoveAtMoved relocates. The two flavors are kept separate so the plain path
-// pays nothing for position tracking.
+// is stored at a new index i, so callers such as pqueue can track element
+// positions. Instead of swapping, the Moved variants shift elements into a
+// hole and store the sifted element once at its final index, so moved fires
+// once per shifted element plus once for the sifted element, about half as
+// often as a callback per swap would. The two flavors are kept separate so the
+// plain path pays nothing for position tracking.
 package heapcore
 
 // Heapify arranges s into heap order in O(n).
@@ -89,8 +91,8 @@ func RemoveAt[T any](s []T, i int, compare func(a, b T) int) []T {
 	return s
 }
 
-// HeapifyMoved is Heapify that reports every relocated element to moved.
-// Elements that stay in place are not reported; callers that need every index
+// HeapifyMoved is Heapify that reports relocated elements to moved. Elements
+// that stay in place may not be reported; callers that need every index
 // recorded must do so before calling it.
 func HeapifyMoved[T any](s []T, compare func(a, b T) int, moved func(s []T, i int)) {
 	for i := len(s)/2 - 1; i >= 0; i-- {
@@ -98,10 +100,13 @@ func HeapifyMoved[T any](s []T, compare func(a, b T) int, moved func(s []T, i in
 	}
 }
 
-// DownMoved is Down that calls moved for both elements of every swap.
+// DownMoved is Down that reports every relocated element to moved. It produces
+// the same arrangement as Down. When the element does not move, moved is not
+// called.
 func DownMoved[T any](s []T, i0 int, compare func(a, b T) int, moved func(s []T, i int)) bool {
 	i := i0
 	n := len(s)
+	x := s[i0]
 	for {
 		left := 2*i + 1
 		if left >= n || left < 0 { // left < 0 guards int overflow
@@ -112,30 +117,40 @@ func DownMoved[T any](s []T, i0 int, compare func(a, b T) int, moved func(s []T,
 		if right := left + 1; right < n && compare(s[right], s[left]) < 0 {
 			child = right
 		}
-		if compare(s[child], s[i]) >= 0 {
+		if compare(s[child], x) >= 0 {
 			break
 		}
 
-		s[i], s[child] = s[child], s[i]
+		s[i] = s[child]
 		moved(s, i)
-		moved(s, child)
 		i = child
 	}
-	return i > i0
+	if i == i0 {
+		return false
+	}
+	s[i] = x
+	moved(s, i)
+	return true
 }
 
-// UpMoved is Up that calls moved for both elements of every swap.
+// UpMoved is Up that reports every relocated element to moved. It produces the
+// same arrangement as Up. When the element does not move, moved is not called.
 func UpMoved[T any](s []T, i int, compare func(a, b T) int, moved func(s []T, i int)) {
+	i0 := i
+	x := s[i]
 	for i > 0 {
 		parent := (i - 1) / 2
-		if compare(s[i], s[parent]) >= 0 {
+		if compare(x, s[parent]) >= 0 {
 			break
 		}
 
-		s[i], s[parent] = s[parent], s[i]
+		s[i] = s[parent]
 		moved(s, i)
-		moved(s, parent)
 		i = parent
+	}
+	if i != i0 {
+		s[i] = x
+		moved(s, i)
 	}
 }
 
