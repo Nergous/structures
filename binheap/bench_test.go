@@ -3,6 +3,8 @@ package binheap
 import (
 	"container/heap"
 	"testing"
+
+	"github.com/Nergous/structures/internal/heapcore"
 )
 
 // Package-level sinks prevent the compiler from optimizing away benchmarked
@@ -73,7 +75,7 @@ func BenchmarkPushN(b *testing.B) {
 				b.StopTimer()
 				h.Reset()
 				h.data = append(h.data, base...)
-				heapify(h.data, h.compare)
+				heapcore.Heapify(h.data, h.compare)
 				b.StartTimer()
 
 				h.PushN(vs...)

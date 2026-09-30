@@ -59,6 +59,8 @@ import (
 	"iter"
 	"math/bits"
 	"slices"
+
+	"github.com/Nergous/structures/internal/heapcore"
 )
 
 // Heap is a generic binary heap backed by a slice in heap order. The top of the
@@ -260,7 +262,7 @@ func (h *Heap[T]) Contains(v T) bool {
 func (h *Heap[T]) Push(v T) {
 	h.mustStore("Push")
 	h.data = append(h.data, v)
-	up(h.data, len(h.data)-1, h.compare)
+	heapcore.Up(h.data, len(h.data)-1, h.compare)
 }
 
 // PushN adds vs to the heap. It grows the backing array at most once, making it
@@ -282,11 +284,11 @@ func (h *Heap[T]) PushN(vs ...T) {
 	n := len(h.data)
 	h.data = append(h.data, vs...)
 	if rebuildCheaper(n, len(vs)) {
-		heapify(h.data, h.compare)
+		heapcore.Heapify(h.data, h.compare)
 		return
 	}
 	for i := n; i < len(h.data); i++ {
-		up(h.data, i, h.compare)
+		heapcore.Up(h.data, i, h.compare)
 	}
 }
 
@@ -336,7 +338,7 @@ func (h *Heap[T]) PushPop(v T) T {
 
 	old := h.data[0]
 	h.data[0] = v
-	down(h.data, 0, h.compare)
+	heapcore.Down(h.data, 0, h.compare)
 	return old
 }
 
@@ -359,7 +361,7 @@ func (h *Heap[T]) Replace(v T) (T, bool) {
 
 	old := h.data[0]
 	h.data[0] = v
-	down(h.data, 0, h.compare)
+	heapcore.Down(h.data, 0, h.compare)
 	return old, true
 }
 
@@ -474,18 +476,7 @@ func (h *Heap[T]) popRoot() T {
 // restores the heap order around i. The moved element may need to go either
 // down or up, depending on the subtree it came from.
 func (h *Heap[T]) removeAt(i int) {
-	last := len(h.data) - 1
-	if i != last {
-		h.data[i] = h.data[last]
-	}
-
-	var zero T
-	h.data[last] = zero
-	h.data = h.data[:last]
-
-	if i < last && !down(h.data, i, h.compare) {
-		up(h.data, i, h.compare)
-	}
+	h.data = heapcore.RemoveAt(h.data, i, h.compare)
 }
 
 // mustStore panics with a descriptive message when h cannot store elements:
@@ -518,52 +509,6 @@ func rebuildCheaper(n, k int) bool {
 	return 2*(n+k) < k*bits.Len(uint(n))
 }
 
-// heapify arranges s into heap order in O(n).
-func heapify[T any](s []T, compare func(a, b T) int) {
-	for i := len(s)/2 - 1; i >= 0; i-- {
-		down(s, i, compare)
-	}
-}
-
-// down sifts the element at index i0 toward the leaves until no child is less
-// than it. It reports whether the element moved.
-func down[T any](s []T, i0 int, compare func(a, b T) int) bool {
-	i := i0
-	n := len(s)
-	for {
-		left := 2*i + 1
-		if left >= n || left < 0 { // left < 0 guards int overflow
-			break
-		}
-
-		child := left
-		if right := left + 1; right < n && compare(s[right], s[left]) < 0 {
-			child = right
-		}
-		if compare(s[child], s[i]) >= 0 {
-			break
-		}
-
-		s[i], s[child] = s[child], s[i]
-		i = child
-	}
-	return i > i0
-}
-
-// up sifts the element at index i toward the root until its parent is not
-// greater than it.
-func up[T any](s []T, i int, compare func(a, b T) int) {
-	for i > 0 {
-		parent := (i - 1) / 2
-		if compare(s[i], s[parent]) >= 0 {
-			break
-		}
-
-		s[i], s[parent] = s[parent], s[i]
-		i = parent
-	}
-}
-
 // greater orders values in descending order, turning a min-heap into a
 // max-heap.
 func greater[T cmp.Ordered](a, b T) int {
@@ -585,7 +530,7 @@ func from[T any](s []T, compare func(a, b T) int) *Heap[T] {
 		panic("binheap: nil comparator")
 	}
 	data := slices.Clone(s)
-	heapify(data, compare)
+	heapcore.Heapify(data, compare)
 	return &Heap[T]{
 		data:    data,
 		compare: compare,
