@@ -4,8 +4,9 @@ import (
 	"cmp"
 	"math/rand/v2"
 	"slices"
-	"strings"
 	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
 )
 
 // assertHeap fails the test when h.data violates the heap property under the
@@ -32,22 +33,6 @@ func assertTailZeroed(t *testing.T, h *Heap[*int]) {
 			t.Fatalf("slot %d beyond len still holds %p, want nil", len(h.data)+i, p)
 		}
 	}
-}
-
-func assertPanics(t *testing.T, name, want string, fn func()) {
-	t.Helper()
-
-	defer func() {
-		t.Helper()
-		r := recover()
-		if r == nil {
-			t.Fatalf("%s did not panic, want panic", name)
-		}
-		if msg, _ := r.(string); want != "" && !strings.Contains(msg, want) {
-			t.Fatalf("%s panicked with %v, want message containing %q", name, r, want)
-		}
-	}()
-	fn()
 }
 
 func drain[T any](h *Heap[T]) []T {
@@ -212,9 +197,9 @@ func TestHeap_FromFunc(t *testing.T) {
 }
 
 func TestHeap_NilComparatorPanics(t *testing.T) {
-	assertPanics(t, "NewFunc(nil)", "nil comparator", func() { NewFunc[int](nil) })
-	assertPanics(t, "NewFuncWithCap(nil)", "nil comparator", func() { NewFuncWithCap[int](4, nil) })
-	assertPanics(t, "FromFunc(nil)", "nil comparator", func() { FromFunc([]int{1}, nil) })
+	sharedtest.Panics(t, "NewFunc(nil)", "nil comparator", func() { NewFunc[int](nil) })
+	sharedtest.Panics(t, "NewFuncWithCap(nil)", "nil comparator", func() { NewFuncWithCap[int](4, nil) })
+	sharedtest.Panics(t, "FromFunc(nil)", "nil comparator", func() { FromFunc([]int{1}, nil) })
 }
 
 func TestHeap_PushPop(t *testing.T) {
@@ -797,7 +782,7 @@ func TestHeap_NilReceiverMutatorsPanic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assertPanics(t, tt.name, "binheap: "+tt.op+" on nil receiver", func() { tt.call(nil) })
+			sharedtest.Panics(t, tt.name, "binheap: "+tt.op+" on nil receiver", func() { tt.call(nil) })
 		})
 	}
 }
@@ -816,7 +801,7 @@ func TestHeap_ZeroValue(t *testing.T) {
 	}
 
 	const want = "on zero-value Heap"
-	assertPanics(t, "zero-value Push", want, func() { h.Push(1) })
-	assertPanics(t, "zero-value PushN", want, func() { h.PushN(1) })
-	assertPanics(t, "zero-value Replace", want, func() { h.Replace(1) })
+	sharedtest.Panics(t, "zero-value Push", want, func() { h.Push(1) })
+	sharedtest.Panics(t, "zero-value PushN", want, func() { h.PushN(1) })
+	sharedtest.Panics(t, "zero-value Replace", want, func() { h.Replace(1) })
 }

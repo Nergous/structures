@@ -3,8 +3,9 @@ package orderedmap
 import (
 	"math/rand/v2"
 	"slices"
-	"strings"
 	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
 )
 
 // checkInvariants verifies every structural invariant of m.
@@ -56,21 +57,6 @@ func checkInvariants[K comparable, V any](t *testing.T, m *Map[K, V]) {
 
 func keys[K comparable, V any](m *Map[K, V]) []K {
 	return slices.Collect(m.Keys())
-}
-
-func expectPanic(t *testing.T, want string, f func()) {
-	t.Helper()
-	defer func() {
-		t.Helper()
-		r := recover()
-		if r == nil {
-			t.Fatalf("expected panic containing %q", want)
-		}
-		if msg, _ := r.(string); !strings.Contains(msg, want) {
-			t.Fatalf("panic %v, want it to contain %q", r, want)
-		}
-	}()
-	f()
 }
 
 func fill(n int) *Map[int, int] {
@@ -292,7 +278,7 @@ func TestRemoveFunc(t *testing.T) {
 	if m.RemoveFunc(func(int, int) bool { return true }) != 0 {
 		t.Fatal("RemoveFunc on empty map")
 	}
-	expectPanic(t, "nil predicate", func() { m.RemoveFunc(nil) })
+	sharedtest.Panics(t, "call", "nil predicate", func() { m.RemoveFunc(nil) })
 }
 
 func TestIterators_SkipHoles(t *testing.T) {
@@ -625,7 +611,7 @@ func TestNilReceiver(t *testing.T) {
 		"Shrink": func() { m.Shrink() },
 		"Clip":   func() { m.Clip() },
 	} {
-		expectPanic(t, name+" on nil receiver", f)
+		sharedtest.Panics(t, name, name+" on nil receiver", f)
 	}
 }
 

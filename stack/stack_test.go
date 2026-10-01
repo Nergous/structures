@@ -1,6 +1,11 @@
 package stack
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
+)
 
 func assertNewEmpty[T any](t *testing.T) {
 	t.Helper()
@@ -718,19 +723,109 @@ func TestStack_NilReceiver(t *testing.T) {
 	})
 }
 
+func TestStack_PopN(t *testing.T) {
+	tests := []struct {
+		name string
+		n    int
+		want []int
+		left []int
+	}{
+		{name: "one", n: 1, want: []int{5}, left: []int{4, 3, 2, 1}},
+		{name: "several in pop order", n: 3, want: []int{5, 4, 3}, left: []int{2, 1}},
+		{name: "exactly Len", n: 5, want: []int{5, 4, 3, 2, 1}, left: nil},
+		{name: "more than Len drains", n: 99, want: []int{5, 4, 3, 2, 1}, left: nil},
+		{name: "zero", n: 0, want: nil, left: []int{5, 4, 3, 2, 1}},
+		{name: "negative", n: -3, want: nil, left: []int{5, 4, 3, 2, 1}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New[int]()
+			s.PushN(1, 2, 3, 4, 5)
+			capBefore := s.Cap()
+
+			got := s.PopN(tt.n)
+
+			if !equalInts(got, tt.want) {
+				t.Errorf("PopN(%d) = %v, want %v", tt.n, got, tt.want)
+			}
+			if got := s.Slice(); !equalInts(got, tt.left) {
+				t.Errorf("remaining = %v, want %v", got, tt.left)
+			}
+			if got := s.Cap(); got != capBefore {
+				t.Errorf("Cap() = %d, want %d (PopN must preserve capacity)", got, capBefore)
+			}
+		})
+	}
+
+	t.Run("empty and nil return nil", func(t *testing.T) {
+		if got := New[int]().PopN(3); got != nil {
+			t.Errorf("PopN on empty = %v, want nil", got)
+		}
+		var s *Stack[int]
+		if got := s.PopN(3); got != nil {
+			t.Errorf("PopN on nil = %v, want nil", got)
+		}
+	})
+
+	t.Run("releases references", func(t *testing.T) {
+		s := New[*int]()
+		a, b, c := 1, 2, 3
+		s.PushN(&a, &b, &c)
+		backing := s.data[:3]
+
+		s.PopN(2)
+
+		if backing[1] != nil || backing[2] != nil {
+			t.Errorf("popped slots = %p, %p, want nil, nil", backing[1], backing[2])
+		}
+		if backing[0] != &a {
+			t.Errorf("remaining slot was disturbed")
+		}
+	})
+
+	t.Run("usable after PopN", func(t *testing.T) {
+		s := New[int]()
+		s.PushN(1, 2, 3)
+		s.PopN(2)
+		s.Push(9)
+		if got, want := s.Slice(), []int{9, 1}; !equalInts(got, want) {
+			t.Errorf("Slice() = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestStack_ZeroValue(t *testing.T) {
+	var c Stack[int]
+	if c.Len() != 0 || c.Cap() != 0 || !c.IsEmpty() {
+		t.Fatalf("zero Stack: Len=%d Cap=%d IsEmpty=%v, want 0, 0, true", c.Len(), c.Cap(), c.IsEmpty())
+	}
+	if _, ok := c.Pop(); ok {
+		t.Errorf("Pop() on zero value ok = true, want false")
+	}
+
+	c.Push(1)
+	c.Push(2)
+	if got, want := c.Len(), 2; got != want {
+		t.Errorf("Len() after pushes = %d, want %d", got, want)
+	}
+	if got, ok := c.Pop(); !ok || got != 2 {
+		t.Errorf("Pop() = (%d, %v), want (2, true)", got, ok)
+	}
+
+	c.Reset()
+	c.Clear()
+	c.Shrink()
+	c.Clip()
+	c.Grow(4)
+	if c.Cap() < 4 {
+		t.Errorf("Cap() after Grow(4) = %d, want >= 4", c.Cap())
+	}
+}
+
 func TestStack_NilReceiver_MutatorsPanic(t *testing.T) {
 	// The mutating methods need a non-nil receiver to store their results; a nil
 	// receiver is a programming error and must panic.
-	assertPanics := func(t *testing.T, name string, fn func()) {
-		t.Helper()
-		defer func() {
-			if recover() == nil {
-				t.Errorf("%s on nil receiver did not panic, want panic", name)
-			}
-		}()
-		fn()
-	}
-
 	tests := []struct {
 		name string
 		call func(s *Stack[int])
@@ -750,7 +845,7 @@ func TestStack_NilReceiver_MutatorsPanic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var s *Stack[int]
-			assertPanics(t, tt.name, func() { tt.call(s) })
+			sharedtest.Panics(t, tt.name, "stack: "+strings.Fields(tt.name)[0]+" on nil receiver", func() { tt.call(s) })
 		})
 	}
 }

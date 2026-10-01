@@ -1,6 +1,10 @@
 package set
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
+)
 
 func assertSetElements[T comparable](t *testing.T, s *Set[T], want ...T) {
 	t.Helper()
@@ -42,16 +46,6 @@ func assertSliceElements[T comparable](t *testing.T, got []T, want ...T) {
 			t.Fatalf("element %v count delta = %d, want 0 (got %v)", v, count, got)
 		}
 	}
-}
-
-func assertPanics(t *testing.T, name string, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Errorf("%s did not panic, want panic", name)
-		}
-	}()
-	fn()
 }
 
 func TestSet_New(t *testing.T) {
@@ -430,10 +424,10 @@ func TestSet_NilReceiver(t *testing.T) {
 func TestSet_NilReceiverMutatorsPanic(t *testing.T) {
 	var s *Set[int]
 
-	assertPanics(t, "Add", func() { s.Add(1) })
-	assertPanics(t, "AddN", func() { s.AddN(1, 2) })
-	assertPanics(t, "AddN with no arguments", func() { s.AddN() })
-	assertPanics(t, "AddSet", func() { s.AddSet(Of(1)) })
-	assertPanics(t, "Clear", func() { s.Clear() })
-	assertPanics(t, "Reset", func() { s.Reset() })
+	sharedtest.Panics(t, "Add", "set: Add on nil receiver", func() { s.Add(1) })
+	sharedtest.Panics(t, "AddN", "set: AddN on nil receiver", func() { s.AddN(1, 2) })
+	sharedtest.Panics(t, "AddN with no arguments", "set: AddN on nil receiver", func() { s.AddN() })
+	sharedtest.Panics(t, "AddSet", "set: AddSet on nil receiver", func() { s.AddSet(Of(1)) })
+	sharedtest.Panics(t, "Clear", "set: Clear on nil receiver", func() { s.Clear() })
+	sharedtest.Panics(t, "Reset", "set: Reset on nil receiver", func() { s.Reset() })
 }

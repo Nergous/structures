@@ -106,6 +106,19 @@ func ExampleStack_PushN() {
 	// 1
 }
 
+// PopN removes several elements at once and returns them in pop order, so the
+// first element of the result is the former top.
+func ExampleStack_PopN() {
+	s := stack.New[int]()
+	s.PushN(1, 2, 3, 4, 5)
+
+	fmt.Println(s.PopN(3))
+	fmt.Println(s.Len())
+	// Output:
+	// [5 4 3]
+	// 2
+}
+
 // Clone returns an independent shallow copy. Mutating one stack does not affect
 // the other, since they share no backing array.
 func ExampleStack_Clone() {

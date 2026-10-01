@@ -1,15 +1,17 @@
 // Package stack provides a generic, slice-backed LIFO (last-in, first-out) stack.
 //
-// The zero value is not usable; create a stack with [New] or [NewWithCap].
-// Elements are added with [Stack.Push] and removed from the top with
-// [Stack.Pop]; [Stack.Peek] inspects the top without removing it.
+// Create a stack with [New] or [NewWithCap]. Elements are added with
+// [Stack.Push] or [Stack.PushN] and removed from the top with [Stack.Pop] or
+// [Stack.PopN]; [Stack.Peek] inspects the top without removing it.
 //
 // Push runs in amortized O(1) time, occasionally reallocating the backing
 // array as it grows. Pop, Peek, Len, Cap and IsEmpty run in O(1).
 //
-// A nil *Stack[T] behaves as an empty stack for every read-only method, so the
-// zero pointer value is safe to query without first calling [New]. The mutating
-// methods ([Stack.Push], [Stack.PushN], [Stack.Grow], [Stack.Clear],
+// The zero value of Stack[T] is usable as an empty stack. A nil *Stack[T]
+// behaves as an empty stack for every read-only method and for empty-removal
+// methods such as [Stack.Pop] and [Stack.PopN], so the zero pointer value is
+// safe to query without first calling [New]. Methods that need to store or
+// resize data ([Stack.Push], [Stack.PushN], [Stack.Grow], [Stack.Clear],
 // [Stack.Reset], [Stack.Shrink], [Stack.Clip]) require a non-nil receiver and
 // panic on a nil one; see each method's documentation.
 //
@@ -21,12 +23,16 @@ package stack
 import (
 	"iter"
 	"slices"
+
+	"github.com/Nergous/structures/internal/shared"
 )
 
 // Stack is a generic LIFO stack backed by a slice. The top of the stack is the
-// most recently pushed element. A Stack must be created with [New] or
-// [NewWithCap] before any mutating method is called; a nil *Stack[T] is treated
-// as a valid empty stack by the read-only methods only.
+// most recently pushed element.
+//
+// The zero value is a valid empty stack. A nil *Stack[T] is treated as a valid
+// empty stack by read-only and empty-removal methods, but methods that store or
+// resize data require a non-nil receiver.
 //
 // Stack is not safe for concurrent use.
 type Stack[T any] struct {
@@ -40,12 +46,9 @@ func New[T any]() *Stack[T] {
 
 // NewWithCap returns an empty stack with a backing array preallocated for at
 // least n elements. Use it when the maximum size is known up front to avoid
-// reallocations while pushing.
+// reallocations while pushing. A negative n is clamped to zero.
 func NewWithCap[T any](n int) *Stack[T] {
-	if n < 0 {
-		n = 0
-	}
-	return &Stack[T]{data: make([]T, 0, n)}
+	return &Stack[T]{data: make([]T, 0, max(n, 0))}
 }
 
 // Len returns the number of elements currently on the stack. A nil receiver
@@ -139,9 +142,10 @@ func (s *Stack[T]) Slice() []T {
 // backing array may be reallocated to grow.
 //
 // Push requires a non-nil receiver and panics on a nil one: it must store the
-// element somewhere. Create the stack with [New] or [NewWithCap] first.
+// element somewhere. The zero value is usable, so [New] is optional.
 func (s *Stack[T]) Push(v T) {
-	s.PushN(v)
+	shared.MustNotNil(s, "stack", "Push")
+	s.data = append(s.data, v)
 }
 
 // PushN adds vs to the top of the stack in argument order, so the last argument
@@ -149,9 +153,11 @@ func (s *Stack[T]) Push(v T) {
 // than repeated [Stack.Push] calls. With no arguments it is a no-op. Runs in
 // amortized O(k) for k elements.
 //
-// PushN requires a non-nil receiver and panics on a nil one: it must store the
-// elements somewhere. Create the stack with [New] or [NewWithCap] first.
+// PushN requires a non-nil receiver and panics on a nil one, even when called
+// with no arguments: it must store the elements somewhere. The zero value is
+// usable, so [New] is optional.
 func (s *Stack[T]) PushN(vs ...T) {
+	shared.MustNotNil(s, "stack", "PushN")
 	s.data = append(s.data, vs...)
 }
 
@@ -178,13 +184,35 @@ func (s *Stack[T]) Pop() (T, bool) {
 	return value, true
 }
 
+// PopN removes and returns up to n elements from the top of the stack in pop
+// order, so the first element of the result is the former top. If n is greater
+// than Len, it drains the stack. If n is non-positive, or the stack is empty or
+// nil, PopN returns nil. The vacated slots are zeroed so they no longer retain
+// references, and the capacity is preserved. Runs in O(k), where k is the
+// number of elements returned.
+func (s *Stack[T]) PopN(n int) []T {
+	if s == nil || n <= 0 || len(s.data) == 0 {
+		return nil
+	}
+
+	l := len(s.data)
+	n = min(n, l)
+	out := make([]T, n)
+	for i := range out {
+		out[i] = s.data[l-1-i]
+	}
+	clear(s.data[l-n:])
+	s.data = s.data[:l-n]
+	return out
+}
+
 // Clear removes all elements and releases the backing array, so its memory
 // becomes eligible for garbage collection. After Clear, Cap reports 0. To empty
 // the stack while keeping its capacity for reuse, use [Stack.Reset] instead.
 //
-// Clear requires a non-nil receiver and panics on a nil one. Create the stack
-// with [New] or [NewWithCap] first.
+// Clear requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Clear() {
+	shared.MustNotNil(s, "stack", "Clear")
 	s.data = nil
 }
 
@@ -192,9 +220,9 @@ func (s *Stack[T]) Clear() {
 // preserved. The elements are zeroed so the array no longer retains references
 // to them. To also release the backing array, use [Stack.Clear] instead.
 //
-// Reset requires a non-nil receiver and panics on a nil one. Create the stack
-// with [New] or [NewWithCap] first.
+// Reset requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Reset() {
+	shared.MustNotNil(s, "stack", "Reset")
 	clear(s.data)
 	s.data = s.data[:0]
 }
@@ -209,16 +237,10 @@ func (s *Stack[T]) Reset() {
 // reslices and lets memory be reclaimed lazily on the next growth, use
 // [Stack.Clip]. Shrink is the counterpart of [Stack.Grow].
 //
-// Shrink requires a non-nil receiver and panics on a nil one. Create the stack
-// with [New] or [NewWithCap] first.
+// Shrink requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Shrink() {
-	if cap(s.data) == len(s.data) {
-		return
-	}
-
-	trimmed := make([]T, len(s.data))
-	copy(trimmed, s.data)
-	s.data = trimmed
+	shared.MustNotNil(s, "stack", "Shrink")
+	s.data = shared.ShrinkSlice(s.data)
 }
 
 // Clip reduces the reported capacity to the current length without copying, by
@@ -227,9 +249,9 @@ func (s *Stack[T]) Shrink() {
 // returned to the garbage collector until a later growth reallocates. For an
 // immediate, copying reclaim, use [Stack.Shrink].
 //
-// Clip requires a non-nil receiver and panics on a nil one. Create the stack
-// with [New] or [NewWithCap] first.
+// Clip requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Clip() {
+	shared.MustNotNil(s, "stack", "Clip")
 	s.data = slices.Clip(s.data)
 }
 
@@ -239,12 +261,9 @@ func (s *Stack[T]) Clip() {
 // is a no-op when n is non-positive or the capacity is already sufficient. It
 // panics if the new capacity overflows, the same condition as [slices.Grow].
 //
-// Grow requires a non-nil receiver and panics on a nil one. Create the stack
-// with [New] or [NewWithCap] first.
+// Grow requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Grow(n int) {
-	if s == nil {
-		panic("stack: Grow on nil receiver")
-	}
+	shared.MustNotNil(s, "stack", "Grow")
 	if n <= 0 {
 		return
 	}

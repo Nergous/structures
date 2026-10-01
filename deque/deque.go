@@ -23,7 +23,12 @@
 // synchronization.
 package deque
 
-import "iter"
+import (
+	"iter"
+
+	"github.com/Nergous/structures/internal/ring"
+	"github.com/Nergous/structures/internal/shared"
+)
 
 // Deque is a generic double-ended queue backed by a slice ring buffer. The
 // front is the first element removed by [Deque.PopFront]; the back is the first
@@ -36,9 +41,7 @@ import "iter"
 //
 // Deque is not safe for concurrent use.
 type Deque[T any] struct {
-	data []T
-	head int
-	len  int
+	buf ring.Buffer[T]
 }
 
 // New returns an empty deque with no preallocated capacity.
@@ -50,10 +53,7 @@ func New[T any]() *Deque[T] {
 // least n elements. Use it when the maximum size is known up front to avoid
 // reallocations while pushing. A negative n is clamped to zero.
 func NewWithCap[T any](n int) *Deque[T] {
-	if n < 0 {
-		n = 0
-	}
-	return &Deque[T]{data: make([]T, n)}
+	return &Deque[T]{buf: ring.WithCap[T](n)}
 }
 
 // Len returns the number of elements currently in the deque. A nil receiver
@@ -62,7 +62,7 @@ func (d *Deque[T]) Len() int {
 	if d == nil {
 		return 0
 	}
-	return d.len
+	return d.buf.Len()
 }
 
 // Cap returns the capacity of the deque's backing ring buffer, i.e. the total
@@ -73,35 +73,35 @@ func (d *Deque[T]) Cap() int {
 	if d == nil {
 		return 0
 	}
-	return len(d.data)
+	return d.buf.Cap()
 }
 
 // IsEmpty reports whether the deque has no elements. A nil receiver reports
 // true.
 func (d *Deque[T]) IsEmpty() bool {
-	return d == nil || d.len == 0
+	return d == nil || d.buf.Len() == 0
 }
 
 // Front returns the front element without removing it. The boolean result is
 // false when the deque is empty, in which case the returned value is the zero
 // value of T. A nil receiver is treated as empty and returns (zero, false).
 func (d *Deque[T]) Front() (T, bool) {
-	var zero T
-	if d == nil || d.len == 0 {
+	if d == nil {
+		var zero T
 		return zero, false
 	}
-	return d.data[d.head], true
+	return d.buf.Front()
 }
 
 // Back returns the back element without removing it. The boolean result is
 // false when the deque is empty, in which case the returned value is the zero
 // value of T. A nil receiver is treated as empty and returns (zero, false).
 func (d *Deque[T]) Back() (T, bool) {
-	var zero T
-	if d == nil || d.len == 0 {
+	if d == nil {
+		var zero T
 		return zero, false
 	}
-	return d.data[d.index(d.len-1)], true
+	return d.buf.Back()
 }
 
 // All returns an iterator over the deque's elements from front to back, without
@@ -111,10 +111,10 @@ func (d *Deque[T]) Back() (T, bool) {
 // treated as empty and yields no elements.
 func (d *Deque[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
-		if d == nil || d.len == 0 {
+		if d == nil {
 			return
 		}
-		first, second := d.segments()
+		first, second := d.buf.Segments()
 		for _, v := range first {
 			if !yield(v) {
 				return
@@ -140,13 +140,7 @@ func (d *Deque[T]) Clone() *Deque[T] {
 	if d == nil {
 		return New[T]()
 	}
-
-	c := &Deque[T]{
-		data: make([]T, d.len),
-		len:  d.len,
-	}
-	d.copyLiveTo(c.data)
-	return c
+	return &Deque[T]{buf: d.buf.Clone()}
 }
 
 // Slice returns a copy of the deque's elements from front to back, the same
@@ -155,12 +149,12 @@ func (d *Deque[T]) Clone() *Deque[T] {
 // affecting the deque, and vice versa. An empty deque returns nil; a nil
 // receiver is treated as empty and likewise returns nil. Runs in O(n).
 func (d *Deque[T]) Slice() []T {
-	if d == nil || d.len == 0 {
+	if d == nil || d.buf.Len() == 0 {
 		return nil
 	}
 
-	out := make([]T, d.len)
-	d.copyLiveTo(out)
+	out := make([]T, d.buf.Len())
+	d.buf.CopyTo(out)
 	return out
 }
 
@@ -168,18 +162,20 @@ func (d *Deque[T]) Slice() []T {
 // the backing array may be reallocated to grow.
 //
 // PushFront requires a non-nil receiver and panics on a nil one: it must store
-// the element somewhere. Create the deque with [New] or [NewWithCap] first.
+// the element somewhere. The zero value is usable, so [New] is optional.
 func (d *Deque[T]) PushFront(v T) {
-	d.PushFrontN(v)
+	shared.MustNotNil(d, "deque", "PushFront")
+	d.buf.PushFront(v)
 }
 
 // PushBack adds v to the back of the deque. It runs in amortized O(1) time; the
 // backing array may be reallocated to grow.
 //
 // PushBack requires a non-nil receiver and panics on a nil one: it must store
-// the element somewhere. Create the deque with [New] or [NewWithCap] first.
+// the element somewhere. The zero value is usable, so [New] is optional.
 func (d *Deque[T]) PushBack(v T) {
-	d.PushBackN(v)
+	shared.MustNotNil(d, "deque", "PushBack")
+	d.buf.PushBack(v)
 }
 
 // PushFrontN adds vs to the front of the deque in argument order, so the first
@@ -187,23 +183,12 @@ func (d *Deque[T]) PushBack(v T) {
 // making it cheaper than repeated [Deque.PushFront] calls. With no arguments it
 // is a no-op. Runs in amortized O(k) for k elements.
 //
-// PushFrontN requires a non-nil receiver and panics on a nil one: it must store
-// the elements somewhere. Create the deque with [New] or [NewWithCap] first.
+// PushFrontN requires a non-nil receiver and panics on a nil one, even when
+// called with no arguments: it must store the elements somewhere. The zero
+// value is usable, so [New] is optional.
 func (d *Deque[T]) PushFrontN(vs ...T) {
-	if d == nil {
-		panic("deque: PushFrontN on nil receiver")
-	}
-	if len(vs) == 0 {
-		return
-	}
-
-	d.growFor(d.len + len(vs))
-	capacity := len(d.data)
-	d.head = (d.head - len(vs) + capacity) % capacity
-	for i, v := range vs {
-		d.data[(d.head+i)%capacity] = v
-	}
-	d.len += len(vs)
+	shared.MustNotNil(d, "deque", "PushFrontN")
+	d.buf.PushFrontN(vs)
 }
 
 // PushBackN adds vs to the back of the deque in argument order, so the last
@@ -211,21 +196,12 @@ func (d *Deque[T]) PushFrontN(vs ...T) {
 // making it cheaper than repeated [Deque.PushBack] calls. With no arguments it
 // is a no-op. Runs in amortized O(k) for k elements.
 //
-// PushBackN requires a non-nil receiver and panics on a nil one: it must store
-// the elements somewhere. Create the deque with [New] or [NewWithCap] first.
+// PushBackN requires a non-nil receiver and panics on a nil one, even when
+// called with no arguments: it must store the elements somewhere. The zero
+// value is usable, so [New] is optional.
 func (d *Deque[T]) PushBackN(vs ...T) {
-	if d == nil {
-		panic("deque: PushBackN on nil receiver")
-	}
-	if len(vs) == 0 {
-		return
-	}
-
-	d.growFor(d.len + len(vs))
-	for i, v := range vs {
-		d.data[d.index(d.len+i)] = v
-	}
-	d.len += len(vs)
+	shared.MustNotNil(d, "deque", "PushBackN")
+	d.buf.PushBackN(vs)
 }
 
 // PopFront removes and returns the front element. The boolean result is false
@@ -235,19 +211,11 @@ func (d *Deque[T]) PushBackN(vs ...T) {
 //
 // A nil receiver is treated as empty and returns (zero, false).
 func (d *Deque[T]) PopFront() (T, bool) {
-	var zero T
-	if d == nil || d.len == 0 {
+	if d == nil {
+		var zero T
 		return zero, false
 	}
-
-	v := d.data[d.head]
-	d.data[d.head] = zero
-	d.head = (d.head + 1) % len(d.data)
-	d.len--
-	if d.len == 0 {
-		d.head = 0
-	}
-	return v, true
+	return d.buf.PopFront()
 }
 
 // PopBack removes and returns the back element. The boolean result is false
@@ -257,19 +225,11 @@ func (d *Deque[T]) PopFront() (T, bool) {
 //
 // A nil receiver is treated as empty and returns (zero, false).
 func (d *Deque[T]) PopBack() (T, bool) {
-	var zero T
-	if d == nil || d.len == 0 {
+	if d == nil {
+		var zero T
 		return zero, false
 	}
-
-	idx := d.index(d.len - 1)
-	v := d.data[idx]
-	d.data[idx] = zero
-	d.len--
-	if d.len == 0 {
-		d.head = 0
-	}
-	return v, true
+	return d.buf.PopBack()
 }
 
 // PopFrontN removes and returns up to n front elements in front-to-back order.
@@ -277,19 +237,10 @@ func (d *Deque[T]) PopBack() (T, bool) {
 // and empty deques return nil. The deque's capacity is preserved. Runs in O(k),
 // where k is the number of elements returned.
 func (d *Deque[T]) PopFrontN(n int) []T {
-	if d == nil || d.len == 0 || n <= 0 {
+	if d == nil {
 		return nil
 	}
-	if n > d.len {
-		n = d.len
-	}
-
-	out := make([]T, n)
-	for i := range n {
-		v, _ := d.PopFront()
-		out[i] = v
-	}
-	return out
+	return d.buf.PopFrontN(n)
 }
 
 // PopBackN removes and returns up to n back elements in removal order
@@ -298,19 +249,10 @@ func (d *Deque[T]) PopFrontN(n int) []T {
 // capacity is preserved. Runs in O(k), where k is the number of elements
 // returned.
 func (d *Deque[T]) PopBackN(n int) []T {
-	if d == nil || d.len == 0 || n <= 0 {
+	if d == nil {
 		return nil
 	}
-	if n > d.len {
-		n = d.len
-	}
-
-	out := make([]T, n)
-	for i := range n {
-		v, _ := d.PopBack()
-		out[i] = v
-	}
-	return out
+	return d.buf.PopBackN(n)
 }
 
 // Shrink reduces the backing array to hold exactly Len elements, copying them
@@ -323,22 +265,10 @@ func (d *Deque[T]) PopBackN(n int) []T {
 // buffer. For the cheaper variant that can avoid copying when live elements are
 // contiguous, use [Deque.Clip]. Shrink is the counterpart of [Deque.Grow].
 //
-// Shrink requires a non-nil receiver and panics on a nil one. Create the deque
-// with [New] or [NewWithCap] first.
+// Shrink requires a non-nil receiver and panics on a nil one.
 func (d *Deque[T]) Shrink() {
-	if d.len == 0 {
-		d.data = nil
-		d.head = 0
-		return
-	}
-	if len(d.data) == d.len && d.head == 0 {
-		return
-	}
-
-	trimmed := make([]T, d.len)
-	d.copyLiveTo(trimmed)
-	d.data = trimmed
-	d.head = 0
+	shared.MustNotNil(d, "deque", "Shrink")
+	d.buf.Shrink()
 }
 
 // Clip reduces the reported capacity to the current length, copying only when
@@ -347,27 +277,10 @@ func (d *Deque[T]) Shrink() {
 // guaranteed to be released immediately. For an immediate, always-copying
 // reclaim, use [Deque.Shrink].
 //
-// Clip requires a non-nil receiver and panics on a nil one. Create the deque
-// with [New] or [NewWithCap] first.
+// Clip requires a non-nil receiver and panics on a nil one.
 func (d *Deque[T]) Clip() {
-	if d.len == 0 {
-		d.data = nil
-		d.head = 0
-		return
-	}
-	if len(d.data) == d.len && d.head == 0 {
-		return
-	}
-	if d.head+d.len <= len(d.data) {
-		d.data = d.data[d.head : d.head+d.len : d.head+d.len]
-		d.head = 0
-		return
-	}
-
-	clipped := make([]T, d.len)
-	d.copyLiveTo(clipped)
-	d.data = clipped
-	d.head = 0
+	shared.MustNotNil(d, "deque", "Clip")
+	d.buf.Clip()
 }
 
 // Grow ensures the deque has spare capacity for at least n more elements
@@ -376,90 +289,28 @@ func (d *Deque[T]) Clip() {
 // reallocates and is a no-op when n is non-positive or the capacity is already
 // sufficient.
 //
-// Grow requires a non-nil receiver and panics on a nil one. Create the deque
-// with [New] or [NewWithCap] first.
+// Grow requires a non-nil receiver and panics on a nil one.
 func (d *Deque[T]) Grow(n int) {
-	if d == nil {
-		panic("deque: Grow on nil receiver")
-	}
-	if n <= 0 {
-		return
-	}
-	d.growFor(d.len + n)
+	shared.MustNotNil(d, "deque", "Grow")
+	d.buf.Grow(n)
 }
 
 // Clear removes all elements and releases the backing array, so its memory
 // becomes eligible for garbage collection. After Clear, Cap reports 0. To empty
 // the deque while keeping its capacity for reuse, use [Deque.Reset] instead.
 //
-// Clear requires a non-nil receiver and panics on a nil one. Create the deque
-// with [New] or [NewWithCap] first.
+// Clear requires a non-nil receiver and panics on a nil one.
 func (d *Deque[T]) Clear() {
-	d.data = nil
-	d.head = 0
-	d.len = 0
+	shared.MustNotNil(d, "deque", "Clear")
+	d.buf.Clear()
 }
 
 // Reset removes all elements but keeps the backing array for reuse, so Cap is
 // preserved. The elements are zeroed so the array no longer retains references
 // to them. To also release the backing array, use [Deque.Clear] instead.
 //
-// Reset requires a non-nil receiver and panics on a nil one. Create the deque
-// with [New] or [NewWithCap] first.
+// Reset requires a non-nil receiver and panics on a nil one.
 func (d *Deque[T]) Reset() {
-	d.clearLive()
-	d.head = 0
-	d.len = 0
-}
-
-func (d *Deque[T]) index(offset int) int {
-	return (d.head + offset) % len(d.data)
-}
-
-func (d *Deque[T]) segments() ([]T, []T) {
-	if d.len == 0 {
-		return nil, nil
-	}
-	end := d.head + d.len
-	if end <= len(d.data) {
-		return d.data[d.head:end], nil
-	}
-	return d.data[d.head:], d.data[:end%len(d.data)]
-}
-
-func (d *Deque[T]) copyLiveTo(dst []T) {
-	first, second := d.segments()
-	n := copy(dst, first)
-	copy(dst[n:], second)
-}
-
-func (d *Deque[T]) clearLive() {
-	first, second := d.segments()
-	clear(first)
-	clear(second)
-}
-
-func (d *Deque[T]) growFor(need int) {
-	if need <= len(d.data) {
-		return
-	}
-
-	grown := make([]T, nextCap(len(d.data), need))
-	d.copyLiveTo(grown)
-	d.data = grown
-	d.head = 0
-}
-
-func nextCap(current, need int) int {
-	if current <= 0 {
-		current = 1
-	}
-	for current < need {
-		if current < 1024 {
-			current *= 2
-			continue
-		}
-		current += current / 4
-	}
-	return current
+	shared.MustNotNil(d, "deque", "Reset")
+	d.buf.Reset()
 }

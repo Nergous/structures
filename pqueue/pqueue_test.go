@@ -4,8 +4,9 @@ import (
 	"cmp"
 	"math/rand/v2"
 	"slices"
-	"strings"
 	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
 )
 
 // checkInvariants verifies heap order, that every key's recorded position
@@ -36,21 +37,6 @@ func popAll[K comparable, P any](q *PriorityQueue[K, P]) []Item[K, P] {
 		}
 		out = append(out, Item[K, P]{Key: k, Priority: p})
 	}
-}
-
-func expectPanic(t *testing.T, want string, f func()) {
-	t.Helper()
-	defer func() {
-		t.Helper()
-		r := recover()
-		if r == nil {
-			t.Fatalf("expected panic containing %q", want)
-		}
-		if msg, _ := r.(string); !strings.Contains(msg, want) {
-			t.Fatalf("panic %v, want it to contain %q", r, want)
-		}
-	}()
-	f()
 }
 
 func TestNew_MinOrder(t *testing.T) {
@@ -106,8 +92,8 @@ func TestNewFunc_CustomComparator(t *testing.T) {
 }
 
 func TestNewFunc_NilComparatorPanics(t *testing.T) {
-	expectPanic(t, "nil comparator", func() { NewFunc[string, int](nil) })
-	expectPanic(t, "nil comparator", func() { NewFuncWithCap[string, int](4, nil) })
+	sharedtest.Panics(t, "call", "nil comparator", func() { NewFunc[string, int](nil) })
+	sharedtest.Panics(t, "call", "nil comparator", func() { NewFuncWithCap[string, int](4, nil) })
 }
 
 func TestNewWithCap(t *testing.T) {
@@ -519,7 +505,7 @@ func TestNilReceiver(t *testing.T) {
 		"Shrink": func() { q.Shrink() },
 		"Clip":   func() { q.Clip() },
 	} {
-		expectPanic(t, name+" on nil receiver", f)
+		sharedtest.Panics(t, name, name+" on nil receiver", f)
 	}
 }
 
@@ -535,7 +521,7 @@ func TestZeroValue(t *testing.T) {
 	if _, ok := q.Remove("a"); ok {
 		t.Fatal("Remove on zero value")
 	}
-	expectPanic(t, "zero-value PriorityQueue", func() { q.Push("a", 1) })
+	sharedtest.Panics(t, "call", "zero-value PriorityQueue", func() { q.Push("a", 1) })
 
 	q.Reset()
 	q.Clip()

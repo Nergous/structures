@@ -22,7 +22,11 @@
 // that share a set across goroutines must provide their own synchronization.
 package set
 
-import "iter"
+import (
+	"iter"
+
+	"github.com/Nergous/structures/internal/shared"
+)
 
 // Set is a collection of unique comparable values backed by a Go map.
 //
@@ -186,9 +190,7 @@ func (s *Set[T]) Clone() *Set[T] {
 // Add requires a non-nil receiver and panics on a nil one. A zero-value Set is
 // usable: Add allocates its backing map on first insertion.
 func (s *Set[T]) Add(v T) bool {
-	if s == nil {
-		panic("set: Add on nil receiver")
-	}
+	shared.MustNotNil(s, "set", "Add")
 	if s.m == nil {
 		s.m = make(map[T]struct{})
 	}
@@ -207,9 +209,7 @@ func (s *Set[T]) Add(v T) bool {
 // AddN requires a non-nil receiver and panics on a nil one, even when called
 // with no arguments.
 func (s *Set[T]) AddN(vs ...T) {
-	if s == nil {
-		panic("set: AddN on nil receiver")
-	}
+	shared.MustNotNil(s, "set", "AddN")
 
 	if len(vs) == 0 {
 		return
@@ -240,9 +240,7 @@ func (s *Set[T]) Remove(v T) bool {
 //
 // AddSet requires a non-nil receiver and panics on a nil one.
 func (s *Set[T]) AddSet(other *Set[T]) {
-	if s == nil {
-		panic("set: AddSet on nil receiver")
-	}
+	shared.MustNotNil(s, "set", "AddSet")
 
 	if other == nil {
 		return
@@ -294,9 +292,7 @@ func (s *Set[T]) RetainAll(other *Set[T]) {
 //
 // Clear requires a non-nil receiver and panics on a nil one.
 func (s *Set[T]) Clear() {
-	if s == nil {
-		panic("set: Clear on nil receiver")
-	}
+	shared.MustNotNil(s, "set", "Clear")
 
 	s.m = nil
 }
@@ -306,9 +302,7 @@ func (s *Set[T]) Clear() {
 //
 // Reset requires a non-nil receiver and panics on a nil one.
 func (s *Set[T]) Reset() {
-	if s == nil {
-		panic("set: Reset on nil receiver")
-	}
+	shared.MustNotNil(s, "set", "Reset")
 
 	clear(s.m)
 }

@@ -1,6 +1,11 @@
 package queue
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
+)
 
 func equalInts(a, b []int) bool {
 	if len(a) != len(b) {
@@ -21,7 +26,7 @@ func assertNewEmpty[T any](t *testing.T) {
 	if got := q.Len(); got != 0 {
 		t.Errorf("Len() = %d, want 0", got)
 	}
-	if got := cap(q.data); got != 0 {
+	if got := cap(q.buf.Data()); got != 0 {
 		t.Errorf("cap(data) = %d, want 0", got)
 	}
 }
@@ -53,7 +58,7 @@ func TestQueue_NewWithCap(t *testing.T) {
 			if got := q.Len(); got != 0 {
 				t.Errorf("Len() = %d, want 0", got)
 			}
-			if got := cap(q.data); got != tt.wantCap {
+			if got := cap(q.buf.Data()); got != tt.wantCap {
 				t.Errorf("cap(data) = %d, want %d", got, tt.wantCap)
 			}
 			// the queue must be usable regardless of the requested capacity.
@@ -136,7 +141,7 @@ func TestQueue_PopReleasesReference(t *testing.T) {
 	q.Push(&a)
 
 	// alias the same backing array so we can inspect the slot after Pop slices it off.
-	backing := q.data[:1]
+	backing := q.buf.Data()[:1]
 
 	if _, ok := q.Pop(); !ok {
 		t.Fatalf("Pop() ok = false, want true")
@@ -325,7 +330,7 @@ func TestQueue_Reset(t *testing.T) {
 		q.Reset()
 
 		// white-box: the array is retained, so inspect every slot up to cap.
-		full := q.data[:cap(q.data)]
+		full := q.buf.Data()[:cap(q.buf.Data())]
 		for i, p := range full {
 			if p != nil {
 				t.Errorf("backing slot %d = %p, want nil (Reset must zero elements)", i, p)
@@ -769,11 +774,11 @@ func TestQueue_Shrink(t *testing.T) {
 		q.Push(1)
 		q.Push(2)
 		q.Push(3)
-		old := &q.data[0]
+		old := &q.buf.Data()[0]
 
 		q.Shrink()
 
-		if &q.data[0] == old {
+		if &q.buf.Data()[0] == old {
 			t.Errorf("Shrink() reused the backing array, want a new right-sized one")
 		}
 		if got := q.Cap(); got != 3 {
@@ -836,11 +841,11 @@ func TestQueue_Clip(t *testing.T) {
 		q.Push(1)
 		q.Push(2)
 		q.Push(3)
-		old := &q.data[0]
+		old := &q.buf.Data()[0]
 
 		q.Clip()
 
-		if &q.data[0] != old {
+		if &q.buf.Data()[0] != old {
 			t.Errorf("Clip() copied to a new array, want the same backing array (no copy)")
 		}
 		if got := q.Cap(); got != 3 {
@@ -993,19 +998,37 @@ func TestQueue_NilReceiver(t *testing.T) {
 	})
 }
 
+func TestQueue_ZeroValue(t *testing.T) {
+	var c Queue[int]
+	if c.Len() != 0 || c.Cap() != 0 || !c.IsEmpty() {
+		t.Fatalf("zero Queue: Len=%d Cap=%d IsEmpty=%v, want 0, 0, true", c.Len(), c.Cap(), c.IsEmpty())
+	}
+	if _, ok := c.Pop(); ok {
+		t.Errorf("Pop() on zero value ok = true, want false")
+	}
+
+	c.Push(1)
+	c.Push(2)
+	if got, want := c.Len(), 2; got != want {
+		t.Errorf("Len() after pushes = %d, want %d", got, want)
+	}
+	if got, ok := c.Pop(); !ok || got != 1 {
+		t.Errorf("Pop() = (%d, %v), want (1, true)", got, ok)
+	}
+
+	c.Reset()
+	c.Clear()
+	c.Shrink()
+	c.Clip()
+	c.Grow(4)
+	if c.Cap() < 4 {
+		t.Errorf("Cap() after Grow(4) = %d, want >= 4", c.Cap())
+	}
+}
+
 func TestQueue_NilReceiver_MutatorsPanic(t *testing.T) {
 	// The mutating methods need a non-nil receiver to store their results; a nil
 	// receiver is a programming error and must panic.
-	assertPanics := func(t *testing.T, name string, fn func()) {
-		t.Helper()
-		defer func() {
-			if recover() == nil {
-				t.Errorf("%s on nil receiver did not panic, want panic", name)
-			}
-		}()
-		fn()
-	}
-
 	tests := []struct {
 		name string
 		call func(q *Queue[int])
@@ -1025,7 +1048,7 @@ func TestQueue_NilReceiver_MutatorsPanic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q *Queue[int]
-			assertPanics(t, tt.name, func() { tt.call(q) })
+			sharedtest.Panics(t, tt.name, "queue: "+strings.Fields(tt.name)[0]+" on nil receiver", func() { tt.call(q) })
 		})
 	}
 }

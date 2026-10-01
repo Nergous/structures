@@ -1,6 +1,11 @@
 package deque
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/Nergous/structures/internal/shared/sharedtest"
+)
 
 func TestDeque_PushPopBothEnds(t *testing.T) {
 	d := New[int]()
@@ -203,6 +208,34 @@ func TestDeque_NilReceiver(t *testing.T) {
 	}
 }
 
+func TestDeque_ZeroValue(t *testing.T) {
+	var c Deque[int]
+	if c.Len() != 0 || c.Cap() != 0 || !c.IsEmpty() {
+		t.Fatalf("zero Deque: Len=%d Cap=%d IsEmpty=%v, want 0, 0, true", c.Len(), c.Cap(), c.IsEmpty())
+	}
+	if _, ok := c.PopFront(); ok {
+		t.Errorf("PopFront() on zero value ok = true, want false")
+	}
+
+	c.PushBack(1)
+	c.PushBack(2)
+	if got, want := c.Len(), 2; got != want {
+		t.Errorf("Len() after pushes = %d, want %d", got, want)
+	}
+	if got, ok := c.PopFront(); !ok || got != 1 {
+		t.Errorf("PopFront() = (%d, %v), want (1, true)", got, ok)
+	}
+
+	c.Reset()
+	c.Clear()
+	c.Shrink()
+	c.Clip()
+	c.Grow(4)
+	if c.Cap() < 4 {
+		t.Errorf("Cap() after Grow(4) = %d, want >= 4", c.Cap())
+	}
+}
+
 func TestDeque_NilReceiverMutatorsPanic(t *testing.T) {
 	tests := []struct {
 		name string
@@ -222,19 +255,9 @@ func TestDeque_NilReceiverMutatorsPanic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var d *Deque[int]
-			assertPanics(t, tt.name, func() { tt.call(d) })
+			sharedtest.Panics(t, tt.name, "deque: "+strings.Fields(tt.name)[0]+" on nil receiver", func() { tt.call(d) })
 		})
 	}
-}
-
-func assertPanics(t *testing.T, name string, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatalf("%s did not panic, want panic", name)
-		}
-	}()
-	fn()
 }
 
 func equalInts(a, b []int) bool {

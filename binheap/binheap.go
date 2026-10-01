@@ -61,6 +61,7 @@ import (
 	"slices"
 
 	"github.com/Nergous/structures/internal/heapcore"
+	"github.com/Nergous/structures/internal/shared"
 )
 
 // Heap is a generic binary heap backed by a slice in heap order. The top of the
@@ -102,19 +103,19 @@ func From[T cmp.Ordered](s []T) *Heap[T] {
 // NewMax returns an empty max-heap for [cmp.Ordered] types, with no
 // preallocated capacity. The largest value is on top.
 func NewMax[T cmp.Ordered]() *Heap[T] {
-	return newHeap(0, greater[T])
+	return newHeap(0, shared.Greater[T])
 }
 
 // NewMaxWithCap returns an empty max-heap with a backing array preallocated for
 // at least n elements. A negative n is treated as 0.
 func NewMaxWithCap[T cmp.Ordered](n int) *Heap[T] {
-	return newHeap(n, greater[T])
+	return newHeap(n, shared.Greater[T])
 }
 
 // FromMax returns a max-heap that holds a copy of s, heapified in O(n). The heap
 // never aliases s. The capacity equals len(s).
 func FromMax[T cmp.Ordered](s []T) *Heap[T] {
-	return from(s, greater[T])
+	return from(s, shared.Greater[T])
 }
 
 // NewFunc returns an empty heap ordered by compare, with no preallocated
@@ -386,7 +387,7 @@ func (h *Heap[T]) Remove(v T) bool {
 //
 // Clear requires a non-nil receiver and panics on a nil one.
 func (h *Heap[T]) Clear() {
-	h.mustNotNil("Clear")
+	shared.MustNotNil(h, "binheap", "Clear")
 	h.data = nil
 }
 
@@ -396,7 +397,7 @@ func (h *Heap[T]) Clear() {
 //
 // Reset requires a non-nil receiver and panics on a nil one.
 func (h *Heap[T]) Reset() {
-	h.mustNotNil("Reset")
+	shared.MustNotNil(h, "binheap", "Reset")
 	clear(h.data)
 	h.data = h.data[:0]
 }
@@ -413,14 +414,8 @@ func (h *Heap[T]) Reset() {
 //
 // Shrink requires a non-nil receiver and panics on a nil one.
 func (h *Heap[T]) Shrink() {
-	h.mustNotNil("Shrink")
-	if cap(h.data) == len(h.data) {
-		return
-	}
-
-	trimmed := make([]T, len(h.data))
-	copy(trimmed, h.data)
-	h.data = trimmed
+	shared.MustNotNil(h, "binheap", "Shrink")
+	h.data = shared.ShrinkSlice(h.data)
 }
 
 // Clip reduces the reported capacity to the current length without copying, by
@@ -431,7 +426,7 @@ func (h *Heap[T]) Shrink() {
 //
 // Clip requires a non-nil receiver and panics on a nil one.
 func (h *Heap[T]) Clip() {
-	h.mustNotNil("Clip")
+	shared.MustNotNil(h, "binheap", "Clip")
 	h.data = slices.Clip(h.data)
 }
 
@@ -443,7 +438,7 @@ func (h *Heap[T]) Clip() {
 //
 // Grow requires a non-nil receiver and panics on a nil one.
 func (h *Heap[T]) Grow(n int) {
-	h.mustNotNil("Grow")
+	shared.MustNotNil(h, "binheap", "Grow")
 	if n <= 0 {
 		return
 	}
@@ -482,18 +477,9 @@ func (h *Heap[T]) removeAt(i int) {
 // mustStore panics with a descriptive message when h cannot store elements:
 // either h is nil or it is a zero-value Heap without a comparator.
 func (h *Heap[T]) mustStore(op string) {
-	if h == nil {
-		panic("binheap: " + op + " on nil receiver")
-	}
+	shared.MustNotNil(h, "binheap", op)
 	if h.compare == nil {
 		panic("binheap: " + op + " on zero-value Heap; create it with New, NewMax, or NewFunc")
-	}
-}
-
-// mustNotNil panics with a descriptive message when h is nil.
-func (h *Heap[T]) mustNotNil(op string) {
-	if h == nil {
-		panic("binheap: " + op + " on nil receiver")
 	}
 }
 
@@ -507,12 +493,6 @@ func rebuildCheaper(n, k int) bool {
 		return true
 	}
 	return 2*(n+k) < k*bits.Len(uint(n))
-}
-
-// greater orders values in descending order, turning a min-heap into a
-// max-heap.
-func greater[T cmp.Ordered](a, b T) int {
-	return cmp.Compare(b, a)
 }
 
 func newHeap[T any](capacity int, compare func(a, b T) int) *Heap[T] {

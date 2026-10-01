@@ -72,6 +72,28 @@ func BenchmarkPop(b *testing.B) {
 	}
 }
 
+// BenchmarkPopN measures draining fixed-size batches. Refilling happens outside
+// the timed section so the benchmark focuses on batch removal and result-slice
+// allocation.
+func BenchmarkPopN(b *testing.B) {
+	const batch = 128
+
+	b.ReportAllocs()
+
+	s := NewWithCap[int](batch)
+	for b.Loop() {
+		if s.Len() < batch {
+			b.StopTimer()
+			s.Reset()
+			for j := range batch {
+				s.Push(j)
+			}
+			b.StartTimer()
+		}
+		sliceSink = s.PopN(batch)
+	}
+}
+
 // BenchmarkPeek measures the cost of reading the top element, which must stay
 // O(1) and allocation-free.
 func BenchmarkPeek(b *testing.B) {

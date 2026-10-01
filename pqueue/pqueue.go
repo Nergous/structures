@@ -65,6 +65,7 @@ import (
 	"slices"
 
 	"github.com/Nergous/structures/internal/heapcore"
+	"github.com/Nergous/structures/internal/shared"
 )
 
 // Item is a key with its priority, as returned by [PriorityQueue.PopN],
@@ -117,13 +118,13 @@ func NewWithCap[K comparable, P cmp.Ordered](n int) *PriorityQueue[K, P] {
 // NewMax returns an empty queue for cmp.Ordered priorities, with no
 // preallocated capacity. The key with the largest priority is on top.
 func NewMax[K comparable, P cmp.Ordered]() *PriorityQueue[K, P] {
-	return newQueue[K, P](0, greater)
+	return newQueue[K, P](0, shared.Greater[P])
 }
 
 // NewMaxWithCap returns an empty queue that puts the largest priority on top,
 // with room for at least n keys preallocated. A negative n is treated as 0.
 func NewMaxWithCap[K comparable, P cmp.Ordered](n int) *PriorityQueue[K, P] {
-	return newQueue[K, P](n, greater)
+	return newQueue[K, P](n, shared.Greater[P])
 }
 
 // NewFunc returns an empty queue whose priorities are ordered by compare, with
@@ -371,7 +372,7 @@ func (q *PriorityQueue[K, P]) Remove(key K) (P, bool) {
 //
 // Clear requires a non-nil receiver and panics on a nil one.
 func (q *PriorityQueue[K, P]) Clear() {
-	q.mustNotNil("Clear")
+	shared.MustNotNil(q, "pqueue", "Clear")
 	q.data = nil
 	q.pos = make(map[K]int)
 	q.nextSeq = 0
@@ -383,7 +384,7 @@ func (q *PriorityQueue[K, P]) Clear() {
 //
 // Reset requires a non-nil receiver and panics on a nil one.
 func (q *PriorityQueue[K, P]) Reset() {
-	q.mustNotNil("Reset")
+	shared.MustNotNil(q, "pqueue", "Reset")
 	clear(q.data)
 	q.data = q.data[:0]
 	clear(q.pos)
@@ -399,7 +400,7 @@ func (q *PriorityQueue[K, P]) Reset() {
 //
 // Grow requires a non-nil receiver and panics on a nil one.
 func (q *PriorityQueue[K, P]) Grow(n int) {
-	q.mustNotNil("Grow")
+	shared.MustNotNil(q, "pqueue", "Grow")
 	if n <= 0 {
 		return
 	}
@@ -419,12 +420,8 @@ func (q *PriorityQueue[K, P]) Grow(n int) {
 //
 // Shrink requires a non-nil receiver and panics on a nil one.
 func (q *PriorityQueue[K, P]) Shrink() {
-	q.mustNotNil("Shrink")
-	if cap(q.data) != len(q.data) {
-		trimmed := make([]entry[K, P], len(q.data))
-		copy(trimmed, q.data)
-		q.data = trimmed
-	}
+	shared.MustNotNil(q, "pqueue", "Shrink")
+	q.data = shared.ShrinkSlice(q.data)
 	q.pos = positions(q.data)
 }
 
@@ -435,7 +432,7 @@ func (q *PriorityQueue[K, P]) Shrink() {
 //
 // Clip requires a non-nil receiver and panics on a nil one.
 func (q *PriorityQueue[K, P]) Clip() {
-	q.mustNotNil("Clip")
+	shared.MustNotNil(q, "pqueue", "Clip")
 	q.data = slices.Clip(q.data)
 }
 
@@ -456,17 +453,10 @@ func (q *PriorityQueue[K, P]) bindMoved() {
 	}
 }
 
-// mustNotNil panics with a descriptive message when q is nil.
-func (q *PriorityQueue[K, P]) mustNotNil(op string) {
-	if q == nil {
-		panic("pqueue: " + op + " on nil receiver")
-	}
-}
-
 // mustStore panics with a descriptive message when q cannot store keys:
 // either q is nil or it is a zero-value PriorityQueue without a comparator.
 func (q *PriorityQueue[K, P]) mustStore(op string) {
-	q.mustNotNil(op)
+	shared.MustNotNil(q, "pqueue", op)
 	if q.compare == nil {
 		panic("pqueue: " + op + " on zero-value PriorityQueue; create it with New, NewMax, or NewFunc")
 	}
@@ -510,9 +500,4 @@ func items[K comparable, P any](s []entry[K, P]) []Item[K, P] {
 		}
 	}
 	return out
-}
-
-// greater orders priorities in descending order, putting the largest on top.
-func greater[P cmp.Ordered](a, b P) int {
-	return cmp.Compare(b, a)
 }

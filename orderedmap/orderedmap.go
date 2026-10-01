@@ -39,6 +39,8 @@ package orderedmap
 import (
 	"iter"
 	"slices"
+
+	"github.com/Nergous/structures/internal/shared"
 )
 
 // minCompact is the smallest entries length at which compaction is considered.
@@ -176,7 +178,7 @@ func (m *Map[K, V]) Last() (K, V, bool) {
 //
 // Set panics on a nil receiver.
 func (m *Map[K, V]) Set(k K, v V) bool {
-	m.mustNotNil("Set")
+	shared.MustNotNil(m, "orderedmap", "Set")
 
 	if i, ok := m.index[k]; ok {
 		m.entries[i].value = v
@@ -384,7 +386,7 @@ func (m *Map[K, V]) Values() iter.Seq[V] {
 //
 // Clear panics on a nil receiver.
 func (m *Map[K, V]) Clear() {
-	m.mustNotNil("Clear")
+	shared.MustNotNil(m, "orderedmap", "Clear")
 	m.entries = nil
 	m.index = make(map[K]int)
 	m.head = 0
@@ -397,7 +399,7 @@ func (m *Map[K, V]) Clear() {
 //
 // Reset panics on a nil receiver.
 func (m *Map[K, V]) Reset() {
-	m.mustNotNil("Reset")
+	shared.MustNotNil(m, "orderedmap", "Reset")
 	clear(m.entries)
 	m.entries = m.entries[:0]
 	clear(m.index)
@@ -412,7 +414,7 @@ func (m *Map[K, V]) Reset() {
 //
 // Grow panics on a nil receiver.
 func (m *Map[K, V]) Grow(n int) {
-	m.mustNotNil("Grow")
+	shared.MustNotNil(m, "orderedmap", "Grow")
 	if n <= 0 {
 		return
 	}
@@ -426,7 +428,7 @@ func (m *Map[K, V]) Grow(n int) {
 //
 // Clip panics on a nil receiver.
 func (m *Map[K, V]) Clip() {
-	m.mustNotNil("Clip")
+	shared.MustNotNil(m, "orderedmap", "Clip")
 	m.entries = slices.Clip(m.entries)
 }
 
@@ -438,7 +440,7 @@ func (m *Map[K, V]) Clip() {
 //
 // Shrink panics on a nil receiver.
 func (m *Map[K, V]) Shrink() {
-	m.mustNotNil("Shrink")
+	shared.MustNotNil(m, "orderedmap", "Shrink")
 	if m.holes > 0 || cap(m.entries) != len(m.entries) {
 		m.entries = packArray(m.entries, m.holes)
 		m.head, m.holes = 0, 0
@@ -534,11 +536,4 @@ func rebuildIndex[K comparable, V any](entries []entry[K, V]) map[K]int {
 		}
 	}
 	return index
-}
-
-// mustNotNil panics with a descriptive message when m is nil.
-func (m *Map[K, V]) mustNotNil(op string) {
-	if m == nil {
-		panic("orderedmap: " + op + " on nil receiver")
-	}
 }

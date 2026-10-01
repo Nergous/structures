@@ -7,12 +7,13 @@
 // Push and Pop run in amortized O(1) time (Push may occasionally reallocate
 // the backing array as it grows). Peek, Len, Cap and IsEmpty run in O(1).
 //
-// A nil *Queue[T] behaves as an empty queue for every read-only method and for
-// empty-removal methods such as [Queue.Pop] and [Queue.PopN], so the zero
-// pointer value is safe to query without first calling [New]. Methods that need
-// to store or resize data ([Queue.Push], [Queue.PushN], [Queue.Grow],
-// [Queue.Clear], [Queue.Reset], [Queue.Shrink], [Queue.Clip]) require a non-nil
-// receiver and panic on a nil one; see each method's documentation.
+// The zero value of Queue[T] is usable as an empty queue. A nil *Queue[T]
+// behaves as an empty queue for every read-only method and for empty-removal
+// methods such as [Queue.Pop] and [Queue.PopN], so the zero pointer value is
+// safe to query without first calling [New]. Methods that need to store or
+// resize data ([Queue.Push], [Queue.PushN], [Queue.Grow], [Queue.Clear],
+// [Queue.Reset], [Queue.Shrink], [Queue.Clip]) require a non-nil receiver and
+// panic on a nil one; see each method's documentation.
 //
 // A Queue is not safe for concurrent use: it performs no internal locking.
 // Callers that share a queue across goroutines must provide their own
@@ -21,19 +22,21 @@ package queue
 
 import (
 	"iter"
+
+	"github.com/Nergous/structures/internal/ring"
+	"github.com/Nergous/structures/internal/shared"
 )
 
 // Queue is a generic FIFO queue backed by a slice ring buffer. The front of the
-// queue is the oldest element still present, i.e. the next one to be removed. A
-// Queue must be created with [New] or [NewWithCap] before methods that store or
-// resize data are called; a nil *Queue[T] is treated as a valid empty queue by
-// read-only and empty-removal methods.
+// queue is the oldest element still present, i.e. the next one to be removed.
+//
+// The zero value is a valid empty queue. A nil *Queue[T] is treated as a valid
+// empty queue by read-only and empty-removal methods, but methods that store or
+// resize data require a non-nil receiver.
 //
 // Queue is not safe for concurrent use.
 type Queue[T any] struct {
-	data []T
-	head int
-	len  int
+	buf ring.Buffer[T]
 }
 
 // New returns an empty queue with no preallocated capacity.
@@ -43,12 +46,9 @@ func New[T any]() *Queue[T] {
 
 // NewWithCap returns an empty queue with a backing array preallocated for at
 // least n elements. Use it when the maximum size is known up front to avoid
-// reallocations while pushing.
+// reallocations while pushing. A negative n is clamped to zero.
 func NewWithCap[T any](n int) *Queue[T] {
-	if n < 0 {
-		n = 0
-	}
-	return &Queue[T]{data: make([]T, n)}
+	return &Queue[T]{buf: ring.WithCap[T](n)}
 }
 
 // Len returns the number of elements currently in the queue. A nil receiver
@@ -57,7 +57,7 @@ func (q *Queue[T]) Len() int {
 	if q == nil {
 		return 0
 	}
-	return q.len
+	return q.buf.Len()
 }
 
 // Cap returns the capacity of the queue's backing buffer, i.e. the total number
@@ -68,13 +68,13 @@ func (q *Queue[T]) Cap() int {
 	if q == nil {
 		return 0
 	}
-	return len(q.data)
+	return q.buf.Cap()
 }
 
 // IsEmpty reports whether the queue has no elements. A nil receiver reports
 // true.
 func (q *Queue[T]) IsEmpty() bool {
-	return q == nil || q.len == 0
+	return q == nil || q.buf.Len() == 0
 }
 
 // Peek returns the front element (the oldest, next to be removed) without
@@ -82,11 +82,11 @@ func (q *Queue[T]) IsEmpty() bool {
 // case the returned value is the zero value of T. A nil receiver is treated as
 // empty and returns (zero, false).
 func (q *Queue[T]) Peek() (T, bool) {
-	if q == nil || q.len == 0 {
+	if q == nil {
 		var zero T
 		return zero, false
 	}
-	return q.data[q.head], true
+	return q.buf.Front()
 }
 
 // All returns an iterator over the queue's elements from front to back (FIFO
@@ -96,10 +96,10 @@ func (q *Queue[T]) Peek() (T, bool) {
 // receiver is treated as empty and yields no elements.
 func (q *Queue[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
-		if q == nil || q.len == 0 {
+		if q == nil {
 			return
 		}
-		first, second := q.segments()
+		first, second := q.buf.Segments()
 		for _, v := range first {
 			if !yield(v) {
 				return
@@ -125,13 +125,7 @@ func (q *Queue[T]) Clone() *Queue[T] {
 	if q == nil {
 		return New[T]()
 	}
-
-	c := &Queue[T]{
-		data: make([]T, q.len),
-		len:  q.len,
-	}
-	q.copyLiveTo(c.data)
-	return c
+	return &Queue[T]{buf: q.buf.Clone()}
 }
 
 // Slice returns a copy of the queue's elements from front to back (FIFO), the
@@ -140,12 +134,12 @@ func (q *Queue[T]) Clone() *Queue[T] {
 // the queue, and vice versa. An empty queue returns nil; a nil receiver is
 // treated as empty and likewise returns nil. Runs in O(n).
 func (q *Queue[T]) Slice() []T {
-	if q == nil || q.len == 0 {
+	if q == nil || q.buf.Len() == 0 {
 		return nil
 	}
 
-	out := make([]T, q.len)
-	q.copyLiveTo(out)
+	out := make([]T, q.buf.Len())
+	q.buf.CopyTo(out)
 	return out
 }
 
@@ -153,9 +147,10 @@ func (q *Queue[T]) Slice() []T {
 // backing array may be reallocated to grow.
 //
 // Push requires a non-nil receiver and panics on a nil one: it must store the
-// element somewhere. Create the queue with [New] or [NewWithCap] first.
+// element somewhere. The zero value is usable, so [New] is optional.
 func (q *Queue[T]) Push(v T) {
-	q.PushN(v)
+	shared.MustNotNil(q, "queue", "Push")
+	q.buf.PushBack(v)
 }
 
 // PushN adds vs to the back of the queue in argument order, so the last argument
@@ -163,21 +158,12 @@ func (q *Queue[T]) Push(v T) {
 // cheaper than repeated [Queue.Push] calls. With no arguments it is a no-op.
 // Runs in amortized O(k) for k elements.
 //
-// PushN requires a non-nil receiver and panics on a nil one: it must store the
-// elements somewhere. Create the queue with [New] or [NewWithCap] first.
+// PushN requires a non-nil receiver and panics on a nil one, even when called
+// with no arguments: it must store the elements somewhere. The zero value is
+// usable, so [New] is optional.
 func (q *Queue[T]) PushN(vs ...T) {
-	if q == nil {
-		panic("queue: PushN on nil receiver")
-	}
-	if len(vs) == 0 {
-		return
-	}
-
-	q.growFor(q.len + len(vs))
-	for _, v := range vs {
-		q.data[q.index(q.len)] = v
-		q.len++
-	}
+	shared.MustNotNil(q, "queue", "PushN")
+	q.buf.PushBackN(vs)
 }
 
 // Pop removes and returns the front element (the oldest, next to be removed).
@@ -185,22 +171,14 @@ func (q *Queue[T]) PushN(vs ...T) {
 // returned value is the zero value of T. The vacated slot is zeroed so it no
 // longer retains a reference to the popped element, then the front is advanced.
 // It runs in O(1) time.
+//
+// A nil receiver is treated as empty and returns (zero, false).
 func (q *Queue[T]) Pop() (T, bool) {
-	var zero T
-	if q == nil || q.len == 0 {
+	if q == nil {
+		var zero T
 		return zero, false
 	}
-	v := q.data[q.head]
-	q.data[q.head] = zero
-	q.head++
-	if q.head == len(q.data) {
-		q.head = 0
-	}
-	q.len--
-	if q.len == 0 {
-		q.head = 0
-	}
-	return v, true
+	return q.buf.PopFront()
 }
 
 // PopN removes and returns up to n front elements in FIFO order. If n is
@@ -208,19 +186,10 @@ func (q *Queue[T]) Pop() (T, bool) {
 // empty or nil, PopN returns nil. The queue's capacity is preserved. Runs in
 // O(k), where k is the number of elements returned.
 func (q *Queue[T]) PopN(n int) []T {
-	if q == nil || n <= 0 || q.len == 0 {
+	if q == nil {
 		return nil
 	}
-	if n > q.len {
-		n = q.len
-	}
-
-	out := make([]T, n)
-	for i := range n {
-		v, _ := q.Pop()
-		out[i] = v
-	}
-	return out
+	return q.buf.PopFrontN(n)
 }
 
 // Shrink reduces the backing array to hold exactly Len elements, copying them
@@ -229,26 +198,14 @@ func (q *Queue[T]) PopN(n int) []T {
 // that grew large has shrunk and will not grow back.
 //
 // Shrink runs in O(n) and allocates once; it is a no-op when the capacity
-// already equals the length. For the cheaper, non-copying variant that only
-// reslices and lets memory be reclaimed lazily on the next growth, use
-// [Queue.Clip]. Shrink is the counterpart of [Queue.Grow].
+// already equals the length and live elements start at the front of the backing
+// buffer. For the cheaper variant that can avoid copying when live elements are
+// contiguous, use [Queue.Clip]. Shrink is the counterpart of [Queue.Grow].
 //
-// Shrink requires a non-nil receiver and panics on a nil one. Create the queue
-// with [New] or [NewWithCap] first.
+// Shrink requires a non-nil receiver and panics on a nil one.
 func (q *Queue[T]) Shrink() {
-	if q.len == 0 {
-		q.data = nil
-		q.head = 0
-		return
-	}
-	if len(q.data) == q.len && q.head == 0 {
-		return
-	}
-
-	trimmed := make([]T, q.len)
-	q.copyLiveTo(trimmed)
-	q.data = trimmed
-	q.head = 0
+	shared.MustNotNil(q, "queue", "Shrink")
+	q.buf.Shrink()
 }
 
 // Clip reduces the reported capacity to the current length. When the live
@@ -258,120 +215,40 @@ func (q *Queue[T]) Shrink() {
 // unused memory is not guaranteed to be released immediately. For an immediate,
 // always-copying reclaim, use [Queue.Shrink].
 //
-// Clip requires a non-nil receiver and panics on a nil one. Create the queue
-// with [New] or [NewWithCap] first.
+// Clip requires a non-nil receiver and panics on a nil one.
 func (q *Queue[T]) Clip() {
-	if q.len == 0 {
-		q.data = nil
-		q.head = 0
-		return
-	}
-	if len(q.data) == q.len && q.head == 0 {
-		return
-	}
-	if q.head+q.len <= len(q.data) {
-		q.data = q.data[q.head : q.head+q.len : q.head+q.len]
-		q.head = 0
-		return
-	}
-
-	clipped := make([]T, q.len)
-	q.copyLiveTo(clipped)
-	q.data = clipped
-	q.head = 0
+	shared.MustNotNil(q, "queue", "Clip")
+	q.buf.Clip()
 }
 
 // Grow ensures the queue has spare capacity for at least n more elements without
 // reallocating during subsequent pushes, growing the backing array if needed. It
 // is the counterpart of [Queue.Shrink]. Grow runs in O(n) when it reallocates and
 // is a no-op when n is non-positive or the capacity is already sufficient. It
-// panics if the new capacity overflows, the same condition as [slices.Grow].
+// panics if the new capacity overflows.
 //
-// Grow requires a non-nil receiver and panics on a nil one. Create the queue
-// with [New] or [NewWithCap] first.
+// Grow requires a non-nil receiver and panics on a nil one.
 func (q *Queue[T]) Grow(n int) {
-	if q == nil {
-		panic("queue: Grow on nil receiver")
-	}
-	if n <= 0 {
-		return
-	}
-	q.growFor(q.len + n)
+	shared.MustNotNil(q, "queue", "Grow")
+	q.buf.Grow(n)
 }
 
 // Clear removes all elements and releases the backing array, so its memory
 // becomes eligible for garbage collection. After Clear, Cap reports 0. To empty
 // the queue while keeping its capacity for reuse, use [Queue.Reset] instead.
 //
-// Clear requires a non-nil receiver and panics on a nil one. Create the queue
-// with [New] or [NewWithCap] first.
+// Clear requires a non-nil receiver and panics on a nil one.
 func (q *Queue[T]) Clear() {
-	q.data = nil
-	q.head = 0
-	q.len = 0
+	shared.MustNotNil(q, "queue", "Clear")
+	q.buf.Clear()
 }
 
 // Reset removes all elements but keeps the backing array for reuse, so Cap is
 // preserved. The elements are zeroed so the array no longer retains references
 // to them. To also release the backing array, use [Queue.Clear] instead.
 //
-// Reset requires a non-nil receiver and panics on a nil one. Create the queue
-// with [New] or [NewWithCap] first.
+// Reset requires a non-nil receiver and panics on a nil one.
 func (q *Queue[T]) Reset() {
-	q.clearLive()
-	q.head = 0
-	q.len = 0
-}
-
-func (q *Queue[T]) index(offset int) int {
-	return (q.head + offset) % len(q.data)
-}
-
-func (q *Queue[T]) segments() ([]T, []T) {
-	if q.len == 0 {
-		return nil, nil
-	}
-	end := q.head + q.len
-	if end <= len(q.data) {
-		return q.data[q.head:end], nil
-	}
-	return q.data[q.head:], q.data[:end%len(q.data)]
-}
-
-func (q *Queue[T]) copyLiveTo(dst []T) {
-	first, second := q.segments()
-	n := copy(dst, first)
-	copy(dst[n:], second)
-}
-
-func (q *Queue[T]) clearLive() {
-	first, second := q.segments()
-	clear(first)
-	clear(second)
-}
-
-func (q *Queue[T]) growFor(need int) {
-	if need <= len(q.data) {
-		return
-	}
-
-	newCap := nextCap(len(q.data), need)
-	grown := make([]T, newCap)
-	q.copyLiveTo(grown)
-	q.data = grown
-	q.head = 0
-}
-
-func nextCap(current, need int) int {
-	if current <= 0 {
-		current = 1
-	}
-	for current < need {
-		if current < 1024 {
-			current *= 2
-			continue
-		}
-		current += current / 4
-	}
-	return current
+	shared.MustNotNil(q, "queue", "Reset")
+	q.buf.Reset()
 }
