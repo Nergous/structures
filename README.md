@@ -51,6 +51,7 @@ import "github.com/Nergous/structures/stack"
 | [`set`](./set)     | Generic, map-backed set with unordered iteration and set algebra. | [README](./set/README.md) |
 | [`binheap`](./binheap) | Generic binary heap: min, max, or custom order; type-safe `container/heap` replacement. | [README](./binheap/README.md) |
 | [`pqueue`](./pqueue) | Generic keyed priority queue: change or remove any key's priority in O(log n); stable for equal priorities. | [README](./pqueue/README.md) |
+| [`orderedmap`](./orderedmap) | Generic hash map that iterates in insertion order, with O(1) access to both ends and `MoveToBack`. | [README](./orderedmap/README.md) |
 
 More containers are on the way.
 
@@ -67,6 +68,8 @@ Use Structures when the container itself is part of the program's meaning:
   sorted streams;
 - a priority queue when queued items must be re-prioritized or cancelled by
   identity, as in Dijkstra's algorithm, A*, or job schedulers;
+- an ordered map when output must be deterministic, or as the core of a FIFO
+  or least-recently-used cache;
 - future containers where a compact, documented abstraction reads better than
   open-coded slice manipulation.
 

@@ -16,6 +16,8 @@ stay dependency-free, idiomatic, and easy to audit.
 - `binheap`: generic binary heap with min, max, or custom order.
 - `pqueue`: generic keyed priority queue with O(log n) priority updates and
   removal by key.
+- `orderedmap`: generic insertion-ordered hash map with O(1) access to both
+  ends and `MoveToBack`.
 
 Before the first tagged release, these packages should be treated as the API
 baseline for naming, nil behavior, docs, examples, tests, and benchmarks.
@@ -62,7 +64,6 @@ containers collection:
 | `binheap`    | `Heap[T]`             | Generic binary heap, min-first by default; type-safe `container/heap` replacement. |
 | `bitset`     | `Bitset`              | Dense auto-growing bit vector with word-parallel set algebra. |
 | `deque`      | `Deque[T]`            | Growable ring-buffer double-ended queue; O(1) push/pop at both ends. |
-| `orderedmap` | `Map[K, V]`           | Insertion-order preserving hash map. |
 | `orderedset` | `Set[T]`              | Insertion-order preserving set. |
 | `sortedmap`  | `SortedMap[K, V]`     | Key-ordered map with navigation, rank/select, and ranges. |
 | `sortedset`  | `SortedSet[T]`        | Ordered set with algebra and navigation. |
