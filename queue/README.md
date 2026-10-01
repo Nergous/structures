@@ -280,18 +280,40 @@ A `Queue` is **not safe for concurrent use**: it performs no internal locking.
 If a queue is shared across goroutines, the caller must provide its own
 synchronization (for example, a `sync.Mutex`).
 
+## Benchmarks
+
+Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 2026-10-01. Each value is the median of 5 runs of `go test -run NONE -bench . -benchmem -benchtime 200ms -count 5`. Absolute numbers depend on hardware, Go version, and system load, so compare rows with each other rather than with other machines.
+
+| Benchmark | What it measures | ns/op | B/op | allocs/op |
+| --------- | ---------------- | ----: | ---: | --------: |
+| `Push` | enqueue into a growing queue | 8.4 | 41 | 0 |
+| `PushN` | one `PushN` of 1024 values | 2 206 | 0 | 0 |
+| `Pop` | one `Pop` | 2.1 | 0 | 0 |
+| `PopN` | one `PopN` of 128 values | 675 | 1 024 | 1 |
+| `Peek` | one `Peek` | 1.3 | 0 | 0 |
+| `PushPopChurn` | push and pop with 16 live elements | 5.7 | 0 | 0 |
+| `All` | iterate 1024 elements | 2 228 | 0 | 0 |
+| `Slice` | copy 1024 elements | 1 482 | 8 192 | 1 |
+
+- `B/op` for `Push` is the amortized cost of growing the ring buffer; `allocs/op` rounds down to 0 because growth happens once per many pushes. Pre-size with `NewWithCap` or `Grow` to avoid it.
+
+Run them with:
+
+```sh
+go test -bench=. -benchmem ./queue/...
+```
+
+The benchmark sources live in [`bench_test.go`](./bench_test.go).
+
 ## More examples and docs
 
 Runnable, verified examples live in
 [`example_test.go`](./example_test.go) — including breadth-first (level-order)
 tree traversal — and are rendered alongside the API on the godoc page.
 
-Benchmarks backing the "amortized O(1)" and "allocation-friendly" claims live in
-[`bench_test.go`](./bench_test.go). Run them with:
-
-```sh
-go test -bench=. -benchmem ./queue/...
-```
+Benchmarks backing the "amortized O(1)" and "allocation-friendly" claims are in the
+[Benchmarks](#benchmarks) section above; their sources live in
+[`bench_test.go`](./bench_test.go).
 
 View the documentation locally:
 

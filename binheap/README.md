@@ -348,19 +348,47 @@ A `Heap` is **not safe for concurrent use**: it performs no internal locking.
 If a heap is shared across goroutines, the caller must provide its own
 synchronization (for example, a `sync.Mutex`).
 
+## Benchmarks
+
+Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 2026-10-01. Each value is the median of 5 runs of `go test -run NONE -bench . -benchmem -benchtime 200ms -count 5`. Absolute numbers depend on hardware, Go version, and system load, so compare rows with each other rather than with other machines.
+
+| Benchmark | What it measures | ns/op | B/op | allocs/op |
+| --------- | ---------------- | ----: | ---: | --------: |
+| `Push` | push into a growing heap | 12.9 | 41 | 0 |
+| `PushN/small-into-large` | `PushN` of 8 values into a 4096-element heap | 138 | 0 | 0 |
+| `PushN/into-empty` | `PushN` of 4096 values into an empty heap (rebuild) | 27 432 | 0 | 0 |
+| `Pop` | one `Pop` (4096-element heap) | 84.7 | 0 | 0 |
+| `PushPop` | one `PushPop` (4096-element heap) | 79.1 | 0 | 0 |
+| `Replace` | one `Replace` (4096-element heap) | 74.6 | 0 | 0 |
+| `Peek` | one `Peek` | 1.3 | 0 | 0 |
+| `From` | heapify 4096 values with `From` | 22 846 | 32 816 | 3 |
+| `Contains` | linear `Contains` over 4096 elements | 7 272 | 0 | 0 |
+| `All` | iterate 4096 elements | 7 501 | 0 | 0 |
+| `Slice` | copy 4096 elements | 2 952 | 32 768 | 1 |
+| `Sorted` | sorted copy of 4096 elements | 199 998 | 32 768 | 1 |
+| `PushPopCycle/binheap` | one `Push` + one `Pop`, 4096 elements | 71.0 | 0 | 0 |
+| `PushPopCycle/container-heap` | the same cycle with `container/heap` | 118 | 16 | 1 |
+
+- `B/op` for `Push` is the amortized cost of growing the backing array; `allocs/op` rounds down to 0.
+- A `binheap` push/pop cycle takes about 60% of the time of `container/heap` and does not allocate, because values are not boxed in `any`.
+
+Run them with:
+
+```sh
+go test -bench=. -benchmem ./binheap/...
+```
+
+The benchmark sources live in [`bench_test.go`](./bench_test.go).
+
 ## More examples and docs
 
 Runnable, verified examples live in [`example_test.go`](./example_test.go) —
 including a top-k stream filter and a priority task queue — and are rendered
 alongside the API on the godoc page.
 
-Benchmarks backing the complexity and allocation claims live in
-[`bench_test.go`](./bench_test.go), including a Push+Pop comparison against
-`container/heap`. Run them with:
-
-```sh
-go test -bench=. -benchmem ./binheap/...
-```
+Benchmark results are in the [Benchmarks](#benchmarks) section above, including a
+Push+Pop comparison against `container/heap`; their sources live in
+[`bench_test.go`](./bench_test.go).
 
 View the documentation locally:
 

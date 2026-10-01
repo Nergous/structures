@@ -184,16 +184,44 @@ A `Set` is not safe for concurrent use: it performs no internal locking. If a
 set is shared across goroutines, the caller must provide its own synchronization
 (for example, a `sync.Mutex`).
 
+## Benchmarks
+
+Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 2026-10-01. Each value is the median of 5 runs of `go test -run NONE -bench . -benchmem -benchtime 200ms -count 5`. Absolute numbers depend on hardware, Go version, and system load, so compare rows with each other rather than with other machines.
+
+| Benchmark | What it measures | ns/op | B/op | allocs/op |
+| --------- | ---------------- | ----: | ---: | --------: |
+| `Add` | add new values to a growing set | 123 | 65 | 0 |
+| `AddExisting` | add a value already present (set of 1024) | 7.5 | 0 | 0 |
+| `Contains/hit` | `Contains` of a present value (set of 1024) | 7.4 | 0 | 0 |
+| `Contains/miss` | `Contains` of an absent value (set of 1024) | 8.5 | 0 | 0 |
+| `Remove` | one `Remove` | 25.5 | 0 | 0 |
+| `Union/n=16` | union of two 16-value sets, half overlapping | 1 388 | 1 136 | 8 |
+| `Union/n=1024` | union of two 1024-value sets, half overlapping | 90 741 | 74 464 | 23 |
+| `Union/n=65536` | union of two 65536-value sets, half overlapping | 7 247 879 | 4 729 548 | 533 |
+| `Intersection/n=16` | intersection of two 16-value sets, half overlapping | 1 519 | 1 136 | 8 |
+| `Intersection/n=1024` | intersection of two 1024-value sets, half overlapping | 96 729 | 74 464 | 23 |
+| `Intersection/n=65536` | intersection of two 65536-value sets, half overlapping | 7 610 861 | 4 729 543 | 533 |
+| `All` | iterate 1024 values | 8 445 | 0 | 0 |
+| `Slice` | copy 1024 values | 9 049 | 8 192 | 1 |
+
+- `Add` includes Go map growth: `B/op` is the amortized cost of rehashing as the set grows. Pre-size with `NewWithCap` to avoid it.
+- `Union` and `Intersection` allocate a result set, so their allocation counts grow with the input size.
+
+Run them with:
+
+```sh
+go test -bench=. -benchmem ./set/...
+```
+
+The benchmark sources live in [`bench_test.go`](./bench_test.go).
+
 ## More examples and docs
 
 Runnable, verified examples live in [`example_test.go`](./example_test.go) and
 are rendered alongside the API on the godoc page.
 
-Benchmarks live in [`bench_test.go`](./bench_test.go). Run them with:
-
-```sh
-go test -bench=. -benchmem ./set/...
-```
+Benchmark results are in the [Benchmarks](#benchmarks) section above; their
+sources live in [`bench_test.go`](./bench_test.go).
 
 View the documentation locally:
 

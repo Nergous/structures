@@ -197,31 +197,46 @@ A `Map` is **not safe for concurrent use**: it performs no internal locking. If 
 map is shared across goroutines, the caller must provide its own synchronization
 (for example, a `sync.Mutex`).
 
-## More examples and docs
+## Benchmarks
 
-Runnable, verified examples live in [`example_test.go`](./example_test.go) —
-including an LRU cache and in-place deletion — and are rendered alongside the
-API on the godoc page.
+Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 2026-10-01. Each value is the median of 5 runs of `go test -run NONE -bench . -benchmem -benchtime 200ms -count 5`. Absolute numbers depend on hardware, Go version, and system load, so compare rows with each other rather than with other machines.
 
-Benchmarks live in [`bench_test.go`](./bench_test.go). Measured on a Ryzen 7
-5800X, ordered operations cost roughly 1.0–2.0x a built-in map, ordered
-traversal is about 3x faster than ranging over a built-in map, and none of
-these operations allocates (only `Clone`, `Shrink`, and slice growth do):
+| Benchmark | What it measures | ns/op | B/op | allocs/op |
+| --------- | ---------------- | ----: | ---: | --------: |
+| `Set/orderedmap` | `Set` of new keys, up to 4096 live | 21.8 | 0 | 0 |
+| `Set/builtin-map` | the same inserts into a built-in map | 16.7 | 0 | 0 |
+| `SetExisting` | `Set` of an existing key (replace value), 4096 keys | 13.7 | 0 | 0 |
+| `Get/orderedmap` | `Get` of a present key, 4096 keys | 9.0 | 0 | 0 |
+| `Get/builtin-map` | the same lookup in a built-in map | 7.9 | 0 | 0 |
+| `RemoveSet/orderedmap` | `Remove` a key and `Set` it again, 4096 keys | 77.5 | 0 | 0 |
+| `RemoveSet/builtin-map` | the same in a built-in map | 39.0 | 0 | 0 |
+| `MoveToBack` | `MoveToBack`, 4096 keys | 72.4 | 0 | 0 |
+| `Queue` | `PopFirst` + `Set` at a steady 4096 keys | 87.6 | 0 | 0 |
+| `All/orderedmap` | iterate 4096 pairs with `All` | 8 950 | 0 | 0 |
+| `All/builtin-map` | range over a 4096-entry built-in map | 30 311 | 0 | 0 |
+| `RemoveFunc` | `RemoveFunc` removing every other pair of 4096 (map rebuilt outside the timing) | 81 698 | 0 | 0 |
+| `Clone` | `Clone` of 4096 pairs | 96 617 | 246 176 | 20 |
 
-| Operation                    | `orderedmap` | built-in map |
-| ---------------------------- | -----------: | -----------: |
-| Set (new key)                |      21.6 ns |      16.6 ns |
-| Get                          |       8.9 ns |       7.8 ns |
-| Remove + Set the same key    |      76.0 ns |      38.6 ns |
-| Traverse 4096 pairs          |      8.9 µs  |     30.0 µs  |
-| MoveToBack                   |      72.6 ns |           — |
-| PopFirst + Set (queue/LRU)   |      85.8 ns |           — |
+- Ordered operations cost roughly 1.1–2x a built-in map, and traversal is about 3x faster than ranging over a built-in map, because entries are contiguous in a slice.
+- Only `Clone`, `Shrink`, and slice growth allocate.
 
 Run them with:
 
 ```sh
 go test -bench=. -benchmem ./orderedmap/...
 ```
+
+The benchmark sources live in [`bench_test.go`](./bench_test.go).
+
+## More examples and docs
+
+Runnable, verified examples live in [`example_test.go`](./example_test.go) —
+including an LRU cache and in-place deletion — and are rendered alongside the
+API on the godoc page.
+
+Benchmark results are in the [Benchmarks](#benchmarks) section above, with a
+built-in map as the baseline for the core operations; their sources live in
+[`bench_test.go`](./bench_test.go).
 
 View the documentation locally:
 

@@ -87,7 +87,7 @@ fmt.Println(job) // backup
 `pqueue` keeps a map from every key to its heap position, updated on every
 move inside the heap. That is what makes key lookups O(1) and updates
 O(log n), and it is also why a push/pop cycle costs several times more than in
-`binheap` (see [benchmarks](#more-examples-and-docs)).
+`binheap` (see [benchmarks](#benchmarks)).
 
 ## Ordering
 
@@ -221,23 +221,42 @@ A `PriorityQueue` is **not safe for concurrent use**: it performs no internal
 locking. If a queue is shared across goroutines, the caller must provide its
 own synchronization (for example, a `sync.Mutex`).
 
+## Benchmarks
+
+Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 2026-10-01. Each value is the median of 5 runs of `go test -run NONE -bench . -benchmem -benchtime 200ms -count 5`. Absolute numbers depend on hardware, Go version, and system load, so compare rows with each other rather than with other machines.
+
+| Benchmark | What it measures | ns/op | B/op | allocs/op |
+| --------- | ---------------- | ----: | ---: | --------: |
+| `Push` | push new keys, up to 4096 live | 62.6 | 0 | 0 |
+| `PushUpdate` | `Push` of a queued key (change priority), 4096 keys | 31.9 | 0 | 0 |
+| `PushPopCycle/pqueue` | one `Pop` + one `Push`, 4096 keys | 386 | 0 | 0 |
+| `PushPopCycle/binheap` | the same cycle with `binheap` | 85.5 | 0 | 0 |
+| `PushPopCycle/container-heap` | the same cycle with an indexed `container/heap` | 223 | 24 | 1 |
+| `Remove` | `Remove` a key and push it back, 4096 keys | 131 | 0 | 0 |
+| `DijkstraMix/pqueue` | one `Pop` + up to 4 decrease-key updates + one `Push` | 514 | 0 | 0 |
+| `DijkstraMix/container-heap` | the same mix with an indexed `container/heap` | 332 | 24 | 1 |
+
+- No operation allocates per call. The indexed `container/heap` version allocates one item per push but updates a pointer field instead of a map entry on every move, so it is faster in raw throughput.
+- `pqueue` costs several times more than `binheap` on a plain push/pop cycle: that is the price of keeping a key-to-position map up to date. Use `binheap` when elements never need to be found, changed, or removed by identity.
+
+Run them with:
+
+```sh
+go test -bench=. -benchmem ./pqueue/...
+```
+
+The benchmark sources live in [`bench_test.go`](./bench_test.go).
+
 ## More examples and docs
 
 Runnable, verified examples live in [`example_test.go`](./example_test.go) —
 including Dijkstra's shortest paths and deadline scheduling — and are rendered
 alongside the API on the godoc page.
 
-Benchmarks live in [`bench_test.go`](./bench_test.go). They compare
-`pqueue` with `binheap` on a plain push/pop cycle, and with the textbook
-indexed `container/heap` queue on a push/pop cycle and a Dijkstra-style mix of
-pops and decrease-key updates. `pqueue` makes no allocations per operation;
-the indexed `container/heap` version allocates one item per push but updates a
-pointer field instead of a map entry on every move, so it is faster in raw
-throughput. Run them with:
-
-```sh
-go test -bench=. -benchmem ./pqueue/...
-```
+Benchmark results are in the [Benchmarks](#benchmarks) section above. They compare
+`pqueue` with `binheap` on a plain push/pop cycle, and with the textbook indexed
+`container/heap` queue on a push/pop cycle and a Dijkstra-style mix of pops and
+decrease-key updates; their sources live in [`bench_test.go`](./bench_test.go).
 
 View the documentation locally:
 

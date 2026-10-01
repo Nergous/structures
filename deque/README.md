@@ -302,17 +302,44 @@ A `Deque` is not safe for concurrent use: it performs no internal locking. If a
 deque is shared across goroutines, the caller must provide its own
 synchronization (for example, a `sync.Mutex`).
 
+## Benchmarks
+
+Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 2026-10-01. Each value is the median of 5 runs of `go test -run NONE -bench . -benchmem -benchtime 200ms -count 5`. Absolute numbers depend on hardware, Go version, and system load, so compare rows with each other rather than with other machines.
+
+| Benchmark | What it measures | ns/op | B/op | allocs/op |
+| --------- | ---------------- | ----: | ---: | --------: |
+| `PushFront` | push at the front of a growing deque | 10.4 | 47 | 0 |
+| `PushBack` | push at the back of a growing deque | 8.8 | 42 | 0 |
+| `PushFrontN` | one `PushFrontN` of 1024 values | 2 061 | 0 | 0 |
+| `PushBackN` | one `PushBackN` of 1024 values | 2 583 | 0 | 0 |
+| `PopFront` | one `PopFront` | 2.7 | 0 | 0 |
+| `PopBack` | one `PopBack` | 2.7 | 0 | 0 |
+| `PopFrontN` | one `PopFrontN` of 128 values | 766 | 1 024 | 1 |
+| `PopBackN` | one `PopBackN` of 128 values | 711 | 1 024 | 1 |
+| `Front` | one `Front` | 1.3 | 0 | 0 |
+| `Back` | one `Back` | 1.6 | 0 | 0 |
+| `PushPopFrontBackChurn` | pushes and pops at both ends with 16 live elements | 12.1 | 0 | 0 |
+| `All` | iterate 1024 elements | 2 155 | 0 | 0 |
+| `Slice` | copy 1024 elements | 1 315 | 8 192 | 1 |
+
+- `B/op` for the single-element pushes is the amortized cost of growing the ring buffer; `allocs/op` rounds down to 0 because growth happens once per many pushes. Pre-size with `NewWithCap` or `Grow` to avoid it.
+
+Run them with:
+
+```sh
+go test -bench=. -benchmem ./deque/...
+```
+
+The benchmark sources live in [`bench_test.go`](./bench_test.go).
+
 ## More examples and docs
 
 Runnable, verified examples live in [`example_test.go`](./example_test.go) and
 are rendered alongside the API on the godoc page.
 
-Benchmarks backing the "amortized O(1)" and "allocation-friendly" claims live in
-[`bench_test.go`](./bench_test.go). Run them with:
-
-```sh
-go test -bench=. -benchmem ./deque/...
-```
+Benchmarks backing the "amortized O(1)" and "allocation-friendly" claims are in the
+[Benchmarks](#benchmarks) section above; their sources live in
+[`bench_test.go`](./bench_test.go).
 
 View the documentation locally:
 
