@@ -165,6 +165,29 @@ collect the keys first and mutate afterwards.
 `Cap` is the capacity of the entry slice, which counts live entries and holes
 alike. It does not include the index, whose size Go does not expose.
 
+## `Shrink` vs `Clip`
+
+Both release unused capacity, but they trade work against reclaimed memory
+differently:
+
+| Operation | Copies?                  | Cost | Holes and unused tail         | Index map           | Use when                                                        |
+| --------- | ------------------------ | ---- | ----------------------------- | ------------------- | --------------------------------------------------------------- |
+| `Shrink`  | yes (packed, new slice)  | O(n) | removed, memory freed now     | rebuilt (reclaimed) | The map grew large, has shrunk, and you want the memory back now. |
+| `Clip`    | no (reslice)             | O(1) | left as they are              | left as is          | You want the cheap version and can wait for lazy reclaim.       |
+
+`Shrink` is the only way to return a large index's memory short of `Clear`,
+because Go maps never shrink in place.
+
+## `Clear` vs `Reset`
+
+Both empty the map and drop all references to the removed keys and values, and
+the map stays usable. They differ in what happens to the storage:
+
+| Operation | Empties map | Entry slice and index      | `Cap` afterwards | Use when                                                |
+| --------- | ----------- | -------------------------- | ---------------- | ------------------------------------------------------- |
+| `Clear`   | yes         | released (eligible for GC) | `0`              | You are done with the map, or want to free its memory.  |
+| `Reset`   | yes         | retained for reuse         | unchanged        | You will refill the map and want to avoid reallocating. |
+
 ## Nil receiver and zero value
 
 The nil value of `*Map[K, V]` behaves as a valid **empty** map for every

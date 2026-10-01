@@ -128,6 +128,10 @@ Structures packages are designed around a few consistent rules:
 - Non-nil containers, including zero-value structs where a package documents
   them as usable, remain valid after empty reads, failed removals, `Clear`, or
   `Reset`.
+- The zero value of `Stack`, `Queue`, `Deque`, `Set`, and `Map` is an empty,
+  usable container. `Heap` and `PriorityQueue` need a constructor because they
+  hold a comparator; their zero value reads as empty and panics on `Push`.
+- Nil-receiver panics share one message format: `pkg: Method on nil receiver`.
 - `Clone` returns an independent shallow copy.
 - `Slice` returns a detached slice in the same order as iteration.
 - `Reset` empties a container while keeping capacity for reuse.

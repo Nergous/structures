@@ -124,11 +124,12 @@ fmt.Println(a.SymmetricDifference(b).Len())  // 3
 For hot paths, `AddSet`, `RemoveSet`, and `RetainAll` mutate the receiver in
 place.
 
-## Capacity and memory
+## Capacity management
 
 Go maps do not expose readable capacity, so `set` intentionally has no `Cap`,
 `Grow`, `Shrink`, or `Clip`. Use `NewWithCap(n)` as a construction-time size
-hint when the expected size is known.
+hint when the expected size is known. `Clear` releases the map and `Reset` keeps
+it for reuse (see below).
 
 ## `Clear` vs `Reset`
 

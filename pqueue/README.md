@@ -184,6 +184,33 @@ A queue stores its heap in a slice and its key index in a map. The
 `Pop`, `PopN`, `Remove`, and `Reset` zero the slots they vacate, so the
 queue never retains references to removed keys or priorities.
 
+## `Shrink` vs `Clip`
+
+Both release unused heap capacity, but they trade work against reclaimed
+memory differently:
+
+| Operation | Copies?         | Cost | Frees unused memory                    | Key index map       | Use when                                                           |
+| --------- | --------------- | ---- | -------------------------------------- | ------------------- | ------------------------------------------------------------------ |
+| `Shrink`  | yes (new array) | O(n) | immediately                            | rebuilt (reclaimed) | The queue grew large, has shrunk, and you want the memory back now. |
+| `Clip`    | no (reslice)    | O(1) | only on the next growth (reallocation) | left as is          | You want the cheap version and can wait for lazy reclaim.          |
+
+`Shrink` is the only way to return a large key index's memory short of `Clear`,
+because Go maps never shrink in place.
+
+## `Clear` vs `Reset`
+
+Both empty the queue and drop all references to the removed keys and
+priorities, and both keep the comparator, so the queue stays usable. They differ
+in what happens to the storage:
+
+| Operation | Empties queue | Backing array and index    | `Cap` afterwards | Use when                                                   |
+| --------- | ------------- | -------------------------- | ---------------- | ---------------------------------------------------------- |
+| `Clear`   | yes           | released (eligible for GC) | `0`              | You are done with the queue, or want to free its memory.   |
+| `Reset`   | yes           | retained for reuse         | unchanged        | You will refill the queue and want to avoid reallocating.  |
+
+Both also restart the insertion counter that breaks ties between equal
+priorities.
+
 ## Nil receiver and zero value
 
 The nil value of `*PriorityQueue[K, P]` behaves as a valid **empty** queue for

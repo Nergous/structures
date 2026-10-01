@@ -248,11 +248,18 @@ slots become available for later pushes; the buffer does not have to slide or
 shrink. This keeps `Cap` stable across `Pop`/`PopN` and lets `Reset` preserve the
 full allocation even after many removals.
 
-## Nil receiver
+## Nil receiver and zero value
 
-The nil zero value of `*Queue[T]` behaves as a valid **empty** queue for every
-read-only method, so you can safely query a `nil` queue without first calling
-`New`:
+The zero value of `Queue[T]` is usable, so `New` is optional:
+
+```go
+var q queue.Queue[int]
+q.Push(1)
+fmt.Println(q.Len()) // 1
+```
+
+A nil `*Queue[T]` behaves as a valid **empty** queue for every read-only
+method and for empty-removal methods, so you can safely query a `nil` queue:
 
 ```go
 var q *queue.Queue[int] // nil
@@ -272,7 +279,7 @@ so the result can be pushed to immediately.
 
 Methods that store or resize data — `Push`, `PushN`, `Grow`, `Clear`, `Reset`,
 `Shrink` and `Clip` — need a non-nil receiver, so they **panic** on a `nil`
-queue. Create the queue with `New` or `NewWithCap` before calling them.
+queue with a message such as `queue: Push on nil receiver`.
 
 ## Concurrency
 
@@ -286,12 +293,12 @@ Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 20
 
 | Benchmark | What it measures | ns/op | B/op | allocs/op |
 | --------- | ---------------- | ----: | ---: | --------: |
-| `Push` | enqueue into a growing queue | 8.4 | 41 | 0 |
+| `Push` | enqueue into a growing queue | 9.3 | 41 | 0 |
 | `PushN` | one `PushN` of 1024 values | 2 206 | 0 | 0 |
-| `Pop` | one `Pop` | 2.1 | 0 | 0 |
-| `PopN` | one `PopN` of 128 values | 675 | 1 024 | 1 |
-| `Peek` | one `Peek` | 1.3 | 0 | 0 |
-| `PushPopChurn` | push and pop with 16 live elements | 5.7 | 0 | 0 |
+| `Pop` | one `Pop` | 2.7 | 0 | 0 |
+| `PopN` | one `PopN` of 128 values | 625 | 1 024 | 1 |
+| `Peek` | one `Peek` | 1.4 | 0 | 0 |
+| `PushPopChurn` | push and pop with 16 live elements | 5.3 | 0 | 0 |
 | `All` | iterate 1024 elements | 2 228 | 0 | 0 |
 | `Slice` | copy 1024 elements | 1 482 | 8 192 | 1 |
 

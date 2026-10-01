@@ -293,8 +293,8 @@ for range d.All() { /* never runs */ }
 the result can be pushed to immediately.
 
 Methods that store, clear, reset, shrink, or resize data need a non-nil
-receiver, so they panic on a nil deque. Create the deque with `New` or
-`NewWithCap`, or use a zero-value `Deque[T]` value, before calling them.
+receiver, so they panic on a nil deque with a message such as
+`deque: PushBack on nil receiver`.
 
 ## Concurrency
 
@@ -308,17 +308,17 @@ Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 20
 
 | Benchmark | What it measures | ns/op | B/op | allocs/op |
 | --------- | ---------------- | ----: | ---: | --------: |
-| `PushFront` | push at the front of a growing deque | 10.4 | 47 | 0 |
+| `PushFront` | push at the front of a growing deque | 8.7 | 47 | 0 |
 | `PushBack` | push at the back of a growing deque | 8.8 | 42 | 0 |
 | `PushFrontN` | one `PushFrontN` of 1024 values | 2 061 | 0 | 0 |
 | `PushBackN` | one `PushBackN` of 1024 values | 2 583 | 0 | 0 |
 | `PopFront` | one `PopFront` | 2.7 | 0 | 0 |
-| `PopBack` | one `PopBack` | 2.7 | 0 | 0 |
-| `PopFrontN` | one `PopFrontN` of 128 values | 766 | 1 024 | 1 |
-| `PopBackN` | one `PopBackN` of 128 values | 711 | 1 024 | 1 |
+| `PopBack` | one `PopBack` | 3.1 | 0 | 0 |
+| `PopFrontN` | one `PopFrontN` of 128 values | 605 | 1 024 | 1 |
+| `PopBackN` | one `PopBackN` of 128 values | 614 | 1 024 | 1 |
 | `Front` | one `Front` | 1.3 | 0 | 0 |
-| `Back` | one `Back` | 1.6 | 0 | 0 |
-| `PushPopFrontBackChurn` | pushes and pops at both ends with 16 live elements | 12.1 | 0 | 0 |
+| `Back` | one `Back` | 1.4 | 0 | 0 |
+| `PushPopFrontBackChurn` | pushes and pops at both ends with 16 live elements | 9.8 | 0 | 0 |
 | `All` | iterate 1024 elements | 2 155 | 0 | 0 |
 | `Slice` | copy 1024 elements | 1 315 | 8 192 | 1 |
 

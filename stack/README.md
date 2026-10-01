@@ -63,6 +63,7 @@ fmt.Println(s.Len(), s.Cap()) // 3 3
 | `Push`                  | `func (s *Stack[T]) Push(v T)`          | Adds `v` to the top of the stack.                                                                   | amortized O(1)  |
 | `PushN`                 | `func (s *Stack[T]) PushN(vs ...T)`     | Adds `vs` in argument order (last argument ends up on top); grows the backing array at most once.   | amortized O(k)  |
 | `Pop`                   | `func (s *Stack[T]) Pop() (T, bool)`    | Removes and returns the top element; `ok` is `false` and the value is the zero value if empty.       | O(1)            |
+| `PopN`                  | `func (s *Stack[T]) PopN(n int) []T`    | Removes and returns up to `n` top elements in pop order (top first); `nil` if `n <= 0` or empty.      | O(k)            |
 | `Clone`                 | `func (s *Stack[T]) Clone() *Stack[T]`  | Returns an independent shallow copy; the two stacks share no backing array.                          | O(n)            |
 | `Slice`                 | `func (s *Stack[T]) Slice() []T`        | Returns a copy of the elements top to bottom (LIFO, same order as `All`); `nil` if empty.            | O(n)            |
 | `Clear`                 | `func (s *Stack[T]) Clear()`            | Removes all elements **and releases** the backing array (`Cap` drops to 0).                         | O(1)            |
@@ -116,6 +117,22 @@ fmt.Println(top) // 3
 ```
 
 With no arguments it is a no-op.
+
+### Bulk pop with `PopN`
+
+`PopN` removes up to `n` elements from the top and returns them in **pop
+order**, so the first element of the result is the former top — exactly as if
+you called `Pop` `n` times. If `n` exceeds `Len` it drains the stack; for
+`n <= 0`, or an empty or nil stack, it returns `nil`. Vacated slots are zeroed
+and `Cap` is preserved:
+
+```go
+s := stack.New[int]()
+s.PushN(1, 2, 3, 4, 5)
+
+fmt.Println(s.PopN(3)) // [5 4 3]
+fmt.Println(s.Len())   // 2
+```
 
 ### Copying out with `Clone` and `Slice`
 
@@ -198,11 +215,18 @@ s.Clear()
 fmt.Println(s.Len(), s.Cap()) // 0 0  — backing array released
 ```
 
-## Nil receiver
+## Nil receiver and zero value
 
-The nil zero value of `*Stack[T]` behaves as a valid **empty** stack for every
-read-only method, so you can safely query a `nil` stack without first calling
-`New`:
+The zero value of `Stack[T]` is usable, so `New` is optional:
+
+```go
+var s stack.Stack[int]
+s.Push(1)
+fmt.Println(s.Len()) // 1
+```
+
+A nil `*Stack[T]` behaves as a valid **empty** stack for every read-only
+method and for empty-removal methods, so you can safely query a `nil` stack:
 
 ```go
 var s *stack.Stack[int] // nil
@@ -212,6 +236,7 @@ s.IsEmpty()    // true
 s.Cap()        // 0
 v, ok := s.Peek() // 0, false
 v, ok = s.Pop()   // 0, false (nothing to remove)
+s.PopN(3)      // nil
 s.Slice()      // nil
 for range s.All() { /* never runs */ }
 ```
@@ -221,7 +246,7 @@ so the result can be pushed to immediately.
 
 The **mutating** methods — `Push`, `PushN`, `Grow`, `Clear`, `Reset`, `Shrink`
 and `Clip` — need a non-nil receiver to store their results, so they **panic**
-on a `nil` stack. Create the stack with `New` or `NewWithCap` before mutating it.
+on a `nil` stack with a message such as `stack: Push on nil receiver`.
 
 ## Concurrency
 
@@ -238,6 +263,7 @@ Measured with Go 1.26.5 on windows/amd64, AMD Ryzen 7 5800X 8-Core Processor, 20
 | `Push` | append to a growing stack | 12.4 | 45 | 0 |
 | `PushN` | one `PushN` of 1024 values | 233 | 0 | 0 |
 | `Pop` | one `Pop` | 1.6 | 0 | 0 |
+| `PopN` | one `PopN` of 128 values | 608 | 1 024 | 1 |
 | `Peek` | one `Peek` | 1.3 | 0 | 0 |
 | `All` | iterate 1024 elements | 1 770 | 0 | 0 |
 | `Slice` | copy 1024 elements | 1 437 | 8 192 | 1 |
