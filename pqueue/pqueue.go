@@ -104,7 +104,7 @@ type PriorityQueue[K comparable, P any] struct {
 // New returns an empty queue ordered by [cmp.Compare] on priorities, with no
 // preallocated capacity. The key with the smallest priority is on top.
 func New[K comparable, P cmp.Ordered]() *PriorityQueue[K, P] {
-	return newQueue[K, P](0, cmp.Compare)
+	return newQueue[K](0, cmp.Compare[P])
 }
 
 // NewWithCap returns an empty queue ordered by [cmp.Compare] on priorities,
@@ -112,19 +112,19 @@ func New[K comparable, P cmp.Ordered]() *PriorityQueue[K, P] {
 // Use it when the maximum size is known up front to avoid reallocations while
 // pushing.
 func NewWithCap[K comparable, P cmp.Ordered](n int) *PriorityQueue[K, P] {
-	return newQueue[K, P](n, cmp.Compare)
+	return newQueue[K](n, cmp.Compare[P])
 }
 
 // NewMax returns an empty queue for cmp.Ordered priorities, with no
 // preallocated capacity. The key with the largest priority is on top.
 func NewMax[K comparable, P cmp.Ordered]() *PriorityQueue[K, P] {
-	return newQueue[K, P](0, shared.Greater[P])
+	return newQueue[K](0, shared.Greater[P])
 }
 
 // NewMaxWithCap returns an empty queue that puts the largest priority on top,
 // with room for at least n keys preallocated. A negative n is treated as 0.
 func NewMaxWithCap[K comparable, P cmp.Ordered](n int) *PriorityQueue[K, P] {
-	return newQueue[K, P](n, shared.Greater[P])
+	return newQueue[K](n, shared.Greater[P])
 }
 
 // NewFunc returns an empty queue whose priorities are ordered by compare, with
@@ -358,7 +358,8 @@ func (q *PriorityQueue[K, P]) PopN(n int) []Item[K, P] {
 		return nil
 	}
 
-	out := make([]Item[K, P], min(n, len(q.data)))
+	n = min(n, len(q.data))
+	out := make([]Item[K, P], n)
 	for i := range out {
 		e := q.removeAt(0)
 		out[i] = Item[K, P]{
@@ -490,15 +491,20 @@ func (q *PriorityQueue[K, P]) mustStore(op string) {
 	}
 }
 
-func newQueue[K comparable, P any](capacity int, compare func(a, b P) int) *PriorityQueue[K, P] {
+// newQueue returns an empty queue whose priorities are ordered by compare, with
+// room for at least n keys. Equal priorities are ordered by push sequence,
+// which makes the queue stable. A negative n is treated as 0. It panics if
+// compare is nil.
+func newQueue[K comparable, P any](n int, compare func(a, b P) int) *PriorityQueue[K, P] {
 	if compare == nil {
 		panic("pqueue: nil comparator")
 	}
 
-	capacity = max(capacity, 0)
+	n = max(n, 0)
+
 	q := &PriorityQueue[K, P]{
-		data: make([]entry[K, P], 0, capacity),
-		pos:  make(map[K]int, capacity),
+		data: make([]entry[K, P], 0, n),
+		pos:  make(map[K]int, n),
 		compare: func(a, b entry[K, P]) int {
 			if c := compare(a.priority, b.priority); c != 0 {
 				return c

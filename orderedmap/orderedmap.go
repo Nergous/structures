@@ -121,14 +121,18 @@ func (m *Map[K, V]) IsEmpty() bool {
 // which case the value is the zero value of V. A nil receiver is treated as
 // empty.
 func (m *Map[K, V]) Get(k K) (V, bool) {
-	if m != nil {
-		if i, ok := m.index[k]; ok {
-			return m.entries[i].value, true
-		}
+	if m == nil {
+		var zero V
+		return zero, false
 	}
 
-	var zero V
-	return zero, false
+	i, ok := m.index[k]
+	if !ok {
+		var zero V
+		return zero, false
+	}
+
+	return m.entries[i].value, true
 }
 
 // Contains reports whether k is in the map. A nil receiver is treated as empty
@@ -183,7 +187,7 @@ func (m *Map[K, V]) Last() (K, V, bool) {
 // keeps its original place in the order. Otherwise the key becomes the newest
 // and Set returns true. It runs in O(1) amortized.
 //
-// Set panics on a nil receiver.
+// Set requires a non-nil receiver and panics on a nil one.
 func (m *Map[K, V]) Set(k K, v V) bool {
 	shared.MustNotNil(m, "orderedmap", "Set")
 
@@ -197,7 +201,11 @@ func (m *Map[K, V]) Set(k K, v V) bool {
 	}
 
 	m.index[k] = len(m.entries)
-	m.entries = append(m.entries, entry[K, V]{key: k, value: v, alive: true})
+	m.entries = append(m.entries, entry[K, V]{
+		key:   k,
+		value: v,
+		alive: true,
+	})
 
 	return true
 }
@@ -405,27 +413,25 @@ func (m *Map[K, V]) Values() iter.Seq[V] {
 // Cap reports 0. To empty the map while keeping its capacity for reuse, use
 // [Map.Reset] instead.
 //
-// Clear panics on a nil receiver.
+// Clear requires a non-nil receiver and panics on a nil one.
 func (m *Map[K, V]) Clear() {
 	shared.MustNotNil(m, "orderedmap", "Clear")
 	m.entries = nil
-	m.index = make(map[K]int)
-	m.head = 0
-	m.holes = 0
+	m.index = nil
+	m.head, m.holes = 0, 0
 }
 
 // Reset removes all pairs but keeps the backing storage for reuse, so Cap is
 // preserved. The vacated slots are zeroed so they no longer retain references.
 // To also release the storage, use [Map.Clear] instead.
 //
-// Reset panics on a nil receiver.
+// Reset requires a non-nil receiver and panics on a nil one.
 func (m *Map[K, V]) Reset() {
 	shared.MustNotNil(m, "orderedmap", "Reset")
 	clear(m.entries)
 	m.entries = m.entries[:0]
 	clear(m.index)
-	m.head = 0
-	m.holes = 0
+	m.head, m.holes = 0, 0
 }
 
 // Grow ensures the entry slice has spare capacity for at least n more keys
@@ -433,7 +439,7 @@ func (m *Map[K, V]) Reset() {
 // and is not preallocated by Grow; the WithCap constructor sizes both. Grow is
 // a no-op when n is non-positive or the capacity is already sufficient.
 //
-// Grow panics on a nil receiver.
+// Grow requires a non-nil receiver and panics on a nil one.
 func (m *Map[K, V]) Grow(n int) {
 	shared.MustNotNil(m, "orderedmap", "Grow")
 
@@ -449,7 +455,7 @@ func (m *Map[K, V]) Grow(n int) {
 // unused tail of the array, and the index map are left as they are; use
 // [Map.Shrink] to reclaim them.
 //
-// Clip panics on a nil receiver.
+// Clip requires a non-nil receiver and panics on a nil one.
 func (m *Map[K, V]) Clip() {
 	shared.MustNotNil(m, "orderedmap", "Clip")
 	m.entries = slices.Clip(m.entries)
@@ -461,7 +467,7 @@ func (m *Map[K, V]) Clip() {
 // shrink in place, so Shrink is the only way to reclaim the index's memory
 // short of [Map.Clear]. It runs in O(n) and allocates.
 //
-// Shrink panics on a nil receiver.
+// Shrink requires a non-nil receiver and panics on a nil one.
 func (m *Map[K, V]) Shrink() {
 	shared.MustNotNil(m, "orderedmap", "Shrink")
 

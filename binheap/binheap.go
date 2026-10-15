@@ -328,7 +328,6 @@ func (h *Heap[T]) PopN(n int) []T {
 	}
 
 	n = min(n, len(h.data))
-
 	out := make([]T, n)
 	for i := range out {
 		out[i] = h.popRoot()
@@ -520,27 +519,28 @@ func rebuildCheaper(n, k int) bool {
 	return 2*(n+k) < k*bits.Len(uint(n))
 }
 
-func newHeap[T any](capacity int, compare func(a, b T) int) *Heap[T] {
+// newHeap returns an empty heap ordered by compare, with a backing array
+// preallocated for at least n elements. A negative n is treated as 0. It panics
+// if compare is nil.
+func newHeap[T any](n int, compare func(a, b T) int) *Heap[T] {
 	if compare == nil {
 		panic("binheap: nil comparator")
 	}
 
+	n = max(n, 0)
+
 	return &Heap[T]{
-		data:    make([]T, 0, max(capacity, 0)),
+		data:    make([]T, 0, n),
 		compare: compare,
 	}
 }
 
+// from returns a heap ordered by compare that holds a heapified copy of s. It
+// panics if compare is nil.
 func from[T any](s []T, compare func(a, b T) int) *Heap[T] {
-	if compare == nil {
-		panic("binheap: nil comparator")
-	}
+	h := newHeap(0, compare)
+	h.data = slices.Clone(s)
+	heapcore.Heapify(h.data, h.compare)
 
-	data := slices.Clone(s)
-	heapcore.Heapify(data, compare)
-
-	return &Heap[T]{
-		data:    data,
-		compare: compare,
-	}
+	return h
 }

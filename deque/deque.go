@@ -46,12 +46,12 @@ type Deque[T any] struct {
 
 // New returns an empty deque with no preallocated capacity.
 func New[T any]() *Deque[T] {
-	return &Deque[T]{}
+	return NewWithCap[T](0)
 }
 
 // NewWithCap returns an empty deque with a backing array preallocated for at
 // least n elements. Use it when the maximum size is known up front to avoid
-// reallocations while pushing. A negative n is clamped to zero.
+// reallocations while pushing. A negative n is treated as 0.
 func NewWithCap[T any](n int) *Deque[T] {
 	return &Deque[T]{
 		buf: ring.WithCap[T](n),

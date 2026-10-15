@@ -41,15 +41,17 @@ type Stack[T any] struct {
 
 // New returns an empty stack with no preallocated capacity.
 func New[T any]() *Stack[T] {
-	return &Stack[T]{}
+	return NewWithCap[T](0)
 }
 
 // NewWithCap returns an empty stack with a backing array preallocated for at
 // least n elements. Use it when the maximum size is known up front to avoid
-// reallocations while pushing. A negative n is clamped to zero.
+// reallocations while pushing. A negative n is treated as 0.
 func NewWithCap[T any](n int) *Stack[T] {
+	n = max(n, 0)
+
 	return &Stack[T]{
-		data: make([]T, 0, max(n, 0)),
+		data: make([]T, 0, n),
 	}
 }
 
@@ -124,7 +126,7 @@ func (s *Stack[T]) Clone() *Stack[T] {
 	}
 
 	return &Stack[T]{
-		data: append([]T(nil), s.data...),
+		data: slices.Clone(s.data),
 	}
 }
 
@@ -173,21 +175,19 @@ func (s *Stack[T]) PushN(vs ...T) {
 // element. It runs in O(1) time. A nil receiver is treated as empty: there is
 // nothing to remove, so it returns (zero, false) without panicking.
 func (s *Stack[T]) Pop() (T, bool) {
+	if s == nil || len(s.data) == 0 {
+		var zero T
+		return zero, false
+	}
+
+	top := len(s.data) - 1
+	v := s.data[top]
+
 	var zero T
-	if s == nil {
-		return zero, false
-	}
+	s.data[top] = zero
+	s.data = s.data[:top]
 
-	l := len(s.data) - 1
-	if l < 0 {
-		return zero, false
-	}
-
-	value := s.data[l]
-	s.data[l] = zero
-	s.data = s.data[:l]
-
-	return value, true
+	return v, true
 }
 
 // PopN removes and returns up to n elements from the top of the stack in pop
@@ -201,15 +201,15 @@ func (s *Stack[T]) PopN(n int) []T {
 		return nil
 	}
 
-	l := len(s.data)
-	n = min(n, l)
+	n = min(n, len(s.data))
+	rest := len(s.data) - n
 	out := make([]T, n)
 	for i := range out {
-		out[i] = s.data[l-1-i]
+		out[i] = s.data[len(s.data)-1-i]
 	}
 
-	clear(s.data[l-n:])
-	s.data = s.data[:l-n]
+	clear(s.data[rest:])
+	s.data = s.data[:rest]
 
 	return out
 }

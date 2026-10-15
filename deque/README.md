@@ -55,7 +55,7 @@ fmt.Println(d.Len(), d.Cap()) // 3 3
 | Method / Function | Signature                                      | Description                                                                                                  | Complexity      |
 | ----------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------- |
 | `New`             | `func New[T any]() *Deque[T]`                  | Creates an empty deque with no preallocated capacity.                                                        | O(1)            |
-| `NewWithCap`      | `func NewWithCap[T any](n int) *Deque[T]`      | Creates an empty deque with capacity preallocated for at least `n` elements; negative `n` is clamped to 0.    | O(n)            |
+| `NewWithCap`      | `func NewWithCap[T any](n int) *Deque[T]`      | Creates an empty deque with capacity preallocated for at least `n` elements; negative `n` is treated as 0.   | O(n)            |
 | `Len`             | `func (d *Deque[T]) Len() int`                 | Number of elements currently in the deque.                                                                   | O(1)            |
 | `Cap`             | `func (d *Deque[T]) Cap() int`                 | Capacity of the backing ring buffer; it does not shrink when elements are popped.                            | O(1)            |
 | `IsEmpty`         | `func (d *Deque[T]) IsEmpty() bool`            | Reports whether the deque has no elements.                                                                   | O(1)            |

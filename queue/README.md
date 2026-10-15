@@ -55,7 +55,7 @@ fmt.Println(q.Len(), q.Cap()) // 3 3
 | Method / Function | Signature                                  | Description                                                                                             | Complexity     |
 | ----------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | -------------- |
 | `New`             | `func New[T any]() *Queue[T]`              | Creates an empty queue with no preallocated capacity.                                                   | O(1)           |
-| `NewWithCap`      | `func NewWithCap[T any](n int) *Queue[T]`  | Creates an empty queue with capacity preallocated for at least `n` elements (a negative `n` is clamped to 0). | O(n)           |
+| `NewWithCap`      | `func NewWithCap[T any](n int) *Queue[T]`  | Creates an empty queue with capacity preallocated for at least `n` elements (a negative `n` is treated as 0). | O(n)           |
 | `Len`             | `func (q *Queue[T]) Len() int`             | Number of elements currently in the queue.                                                              | O(1)           |
 | `Cap`             | `func (q *Queue[T]) Cap() int`             | Capacity of the backing ring buffer; it does not shrink when elements are popped.                       | O(1)           |
 | `IsEmpty`         | `func (q *Queue[T]) IsEmpty() bool`        | Reports whether the queue has no elements.                                                              | O(1)           |

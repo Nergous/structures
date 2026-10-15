@@ -41,12 +41,12 @@ type Queue[T any] struct {
 
 // New returns an empty queue with no preallocated capacity.
 func New[T any]() *Queue[T] {
-	return &Queue[T]{}
+	return NewWithCap[T](0)
 }
 
 // NewWithCap returns an empty queue with a backing array preallocated for at
 // least n elements. Use it when the maximum size is known up front to avoid
-// reallocations while pushing. A negative n is clamped to zero.
+// reallocations while pushing. A negative n is treated as 0.
 func NewWithCap[T any](n int) *Queue[T] {
 	return &Queue[T]{
 		buf: ring.WithCap[T](n),

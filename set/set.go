@@ -39,17 +39,13 @@ type Set[T comparable] struct {
 
 // New returns an empty set.
 func New[T comparable]() *Set[T] {
-	return &Set[T]{
-		m: make(map[T]struct{}),
-	}
+	return NewWithCap[T](0)
 }
 
 // NewWithCap returns an empty set with a map allocated for approximately n
-// elements. A negative n is clamped to 0.
+// elements. A negative n is treated as 0.
 func NewWithCap[T comparable](n int) *Set[T] {
-	if n < 0 {
-		n = 0
-	}
+	n = max(n, 0)
 
 	return &Set[T]{
 		m: make(map[T]struct{}, n),
@@ -58,12 +54,12 @@ func NewWithCap[T comparable](n int) *Set[T] {
 
 // Of returns a set containing vs. Duplicate values are stored once.
 func Of[T comparable](vs ...T) *Set[T] {
-	set := NewWithCap[T](len(vs))
+	out := NewWithCap[T](len(vs))
 	for _, v := range vs {
-		set.m[v] = struct{}{}
+		out.m[v] = struct{}{}
 	}
 
-	return set
+	return out
 }
 
 // From returns a set containing the values in s. Duplicate values are stored
@@ -101,14 +97,6 @@ func (s *Set[T]) Contains(v T) bool {
 // ContainsAll reports whether every value in vs is present in the set. With no
 // arguments it reports true. A nil receiver is treated as an empty set.
 func (s *Set[T]) ContainsAll(vs ...T) bool {
-	if len(vs) == 0 {
-		return true
-	}
-
-	if s == nil {
-		return false
-	}
-
 	for _, v := range vs {
 		if !s.Contains(v) {
 			return false
@@ -145,20 +133,16 @@ func (s *Set[T]) All() iter.Seq[T] {
 // stable between calls. The returned slice is independent of the set. An empty
 // or nil set returns nil.
 func (s *Set[T]) Slice() []T {
-	if s == nil {
+	if s == nil || len(s.m) == 0 {
 		return nil
 	}
 
-	if len(s.m) == 0 {
-		return nil
-	}
-
-	sl := make([]T, 0, len(s.m))
+	out := make([]T, 0, len(s.m))
 	for v := range s.m {
-		sl = append(sl, v)
+		out = append(out, v)
 	}
 
-	return sl
+	return out
 }
 
 // Clone returns an independent shallow copy of the set. The two sets share no
@@ -172,12 +156,12 @@ func (s *Set[T]) Clone() *Set[T] {
 		return New[T]()
 	}
 
-	new := New[T]()
+	c := NewWithCap[T](len(s.m))
 	for v := range s.m {
-		new.m[v] = struct{}{}
+		c.m[v] = struct{}{}
 	}
 
-	return new
+	return c
 }
 
 // Add inserts v into the set and reports whether v was newly added. If v was
@@ -188,12 +172,12 @@ func (s *Set[T]) Clone() *Set[T] {
 func (s *Set[T]) Add(v T) bool {
 	shared.MustNotNil(s, "set", "Add")
 
-	if s.m == nil {
-		s.m = make(map[T]struct{})
-	}
-
 	if _, ok := s.m[v]; ok {
 		return false
+	}
+
+	if s.m == nil {
+		s.m = make(map[T]struct{})
 	}
 
 	s.m[v] = struct{}{}
@@ -309,87 +293,73 @@ func (s *Set[T]) Reset() {
 // Union returns a new set containing all values from s and others. Nil operands
 // are treated as empty sets.
 func (s *Set[T]) Union(others ...*Set[T]) *Set[T] {
-	res := s.Clone()
+	out := s.Clone()
 	for _, other := range others {
 		if other == nil {
 			continue
 		}
 
 		for v := range other.m {
-			res.m[v] = struct{}{}
+			out.m[v] = struct{}{}
 		}
 	}
 
-	return res
+	return out
 }
 
 // Intersection returns a new set containing values present in s and every set
 // in others. Nil operands are treated as empty sets.
 func (s *Set[T]) Intersection(others ...*Set[T]) *Set[T] {
-	res := s.Clone()
+	out := s.Clone()
 	for _, other := range others {
-		for v := range res.m {
+		for v := range out.m {
 			if !other.Contains(v) {
-				delete(res.m, v)
+				delete(out.m, v)
 			}
 		}
 	}
 
-	return res
+	return out
 }
 
 // Difference returns a new set containing values present in s and absent from
 // every set in others. Nil operands are treated as empty sets.
 func (s *Set[T]) Difference(others ...*Set[T]) *Set[T] {
-	res := s.Clone()
+	out := s.Clone()
 	for _, other := range others {
-		for v := range res.m {
+		for v := range out.m {
 			if other.Contains(v) {
-				delete(res.m, v)
+				delete(out.m, v)
 			}
 		}
 	}
 
-	return res
+	return out
 }
 
 // SymmetricDifference returns a new set containing values that are present in
 // exactly one of s or other. A nil operand is treated as an empty set.
 func (s *Set[T]) SymmetricDifference(other *Set[T]) *Set[T] {
-	res := s.Clone()
+	out := s.Clone()
 	if other == nil {
-		return res
+		return out
 	}
 
 	for v := range other.m {
-		if res.Contains(v) {
-			delete(res.m, v)
+		if out.Contains(v) {
+			delete(out.m, v)
 		} else {
-			res.m[v] = struct{}{}
+			out.m[v] = struct{}{}
 		}
 	}
 
-	return res
+	return out
 }
 
 // Equal reports whether s and other contain the same values. Nil sets are
 // treated as empty sets.
 func (s *Set[T]) Equal(other *Set[T]) bool {
-	if s.Len() != other.Len() {
-		return false
-	}
-
-	if s == nil {
-		return true
-	}
-
-	for k := range s.m {
-		if !other.Contains(k) {
-			return false
-		}
-	}
-
-	return true
+	return s.Len() == other.Len() && s.IsSubset(other)
 }
 
 // IsSubset reports whether every value in s is present in other. Nil sets are
@@ -403,8 +373,8 @@ func (s *Set[T]) IsSubset(other *Set[T]) bool {
 		return true
 	}
 
-	for k := range s.m {
-		if !other.Contains(k) {
+	for v := range s.m {
+		if !other.Contains(v) {
 			return false
 		}
 	}
@@ -425,8 +395,8 @@ func (s *Set[T]) IsDisjoint(other *Set[T]) bool {
 		return true
 	}
 
-	for k := range s.m {
-		if other.Contains(k) {
+	for v := range s.m {
+		if other.Contains(v) {
 			return false
 		}
 	}

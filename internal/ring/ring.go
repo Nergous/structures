@@ -20,11 +20,9 @@ type Buffer[T any] struct {
 }
 
 // WithCap returns an empty buffer with room for at least n elements. A
-// non-positive n returns the zero Buffer.
+// negative n is treated as 0.
 func WithCap[T any](n int) Buffer[T] {
-	if n <= 0 {
-		return Buffer[T]{}
-	}
+	n = max(n, 0)
 
 	return Buffer[T]{
 		data: make([]T, n),
@@ -167,14 +165,15 @@ func (b *Buffer[T]) PushFrontN(vs []T) {
 // PopFront removes and returns the first element, or (zero, false) when the
 // buffer is empty. The vacated slot is zeroed.
 func (b *Buffer[T]) PopFront() (T, bool) {
-	var zero T
 	if b.len == 0 {
+		var zero T
 		return zero, false
 	}
 
 	v := b.data[b.head]
-	b.data[b.head] = zero
 
+	var zero T
+	b.data[b.head] = zero
 	b.head++
 	if b.head == len(b.data) {
 		b.head = 0
@@ -191,15 +190,16 @@ func (b *Buffer[T]) PopFront() (T, bool) {
 // PopBack removes and returns the last element, or (zero, false) when the
 // buffer is empty. The vacated slot is zeroed.
 func (b *Buffer[T]) PopBack() (T, bool) {
-	var zero T
 	if b.len == 0 {
+		var zero T
 		return zero, false
 	}
 
 	i := b.index(b.len - 1)
 	v := b.data[i]
-	b.data[i] = zero
 
+	var zero T
+	b.data[i] = zero
 	b.len--
 	if b.len == 0 {
 		b.head = 0
