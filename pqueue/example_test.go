@@ -34,6 +34,7 @@ func Example_dijkstra() {
 		to     string
 		weight int
 	}
+
 	graph := map[string][]edge{
 		"A": {{"B", 4}, {"C", 1}},
 		"C": {{"B", 2}, {"D", 5}},

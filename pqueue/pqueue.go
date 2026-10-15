@@ -151,6 +151,7 @@ func (q *PriorityQueue[K, P]) Len() int {
 	if q == nil {
 		return 0
 	}
+
 	return len(q.data)
 }
 
@@ -160,6 +161,7 @@ func (q *PriorityQueue[K, P]) Cap() int {
 	if q == nil {
 		return 0
 	}
+
 	return cap(q.data)
 }
 
@@ -180,7 +182,9 @@ func (q *PriorityQueue[K, P]) Peek() (K, P, bool) {
 		)
 		return zeroK, zeroP, false
 	}
+
 	e := q.data[0]
+
 	return e.key, e.priority, true
 }
 
@@ -192,11 +196,13 @@ func (q *PriorityQueue[K, P]) Priority(key K) (P, bool) {
 		var zero P
 		return zero, false
 	}
+
 	i, ok := q.pos[key]
 	if !ok {
 		var zero P
 		return zero, false
 	}
+
 	return q.data[i].priority, true
 }
 
@@ -206,7 +212,9 @@ func (q *PriorityQueue[K, P]) Contains(key K) bool {
 	if q == nil {
 		return false
 	}
+
 	_, ok := q.pos[key]
+
 	return ok
 }
 
@@ -224,6 +232,7 @@ func (q *PriorityQueue[K, P]) All() iter.Seq2[K, P] {
 		if q == nil {
 			return
 		}
+
 		for _, e := range q.data {
 			if !yield(e.key, e.priority) {
 				return
@@ -240,6 +249,7 @@ func (q *PriorityQueue[K, P]) Slice() []Item[K, P] {
 	if q == nil || len(q.data) == 0 {
 		return nil
 	}
+
 	return items(q.data)
 }
 
@@ -252,8 +262,10 @@ func (q *PriorityQueue[K, P]) Sorted() []Item[K, P] {
 	if q == nil || len(q.data) == 0 {
 		return nil
 	}
+
 	sorted := slices.Clone(q.data)
 	slices.SortFunc(sorted, q.compare)
+
 	return items(sorted)
 }
 
@@ -269,16 +281,20 @@ func (q *PriorityQueue[K, P]) Clone() *PriorityQueue[K, P] {
 	if q == nil {
 		return nil
 	}
+
 	c := &PriorityQueue[K, P]{
 		data:    slices.Clone(q.data),
 		compare: q.compare,
 		nextSeq: q.nextSeq,
 	}
+
 	if q.compare == nil {
 		return c
 	}
+
 	c.pos = positions(c.data)
 	c.bindMoved()
+
 	return c
 }
 
@@ -293,6 +309,7 @@ func (q *PriorityQueue[K, P]) Clone() *PriorityQueue[K, P] {
 // receiver and on a zero-value PriorityQueue, which has no comparator.
 func (q *PriorityQueue[K, P]) Push(key K, priority P) bool {
 	q.mustStore("Push")
+
 	if i, ok := q.pos[key]; ok {
 		q.data[i].priority = priority
 		heapcore.FixMoved(q.data, i, q.compare, q.moved)
@@ -308,6 +325,7 @@ func (q *PriorityQueue[K, P]) Push(key K, priority P) bool {
 	q.nextSeq++
 	q.pos[key] = i
 	heapcore.UpMoved(q.data, i, q.compare, q.moved)
+
 	return true
 }
 
@@ -324,7 +342,9 @@ func (q *PriorityQueue[K, P]) Pop() (K, P, bool) {
 		)
 		return zeroK, zeroP, false
 	}
+
 	e := q.removeAt(0)
+
 	return e.key, e.priority, true
 }
 
@@ -337,6 +357,7 @@ func (q *PriorityQueue[K, P]) PopN(n int) []Item[K, P] {
 	if q == nil || n <= 0 || len(q.data) == 0 {
 		return nil
 	}
+
 	out := make([]Item[K, P], min(n, len(q.data)))
 	for i := range out {
 		e := q.removeAt(0)
@@ -345,6 +366,7 @@ func (q *PriorityQueue[K, P]) PopN(n int) []Item[K, P] {
 			Priority: e.priority,
 		}
 	}
+
 	return out
 }
 
@@ -357,11 +379,13 @@ func (q *PriorityQueue[K, P]) Remove(key K) (P, bool) {
 		var zero P
 		return zero, false
 	}
+
 	i, ok := q.pos[key]
 	if !ok {
 		var zero P
 		return zero, false
 	}
+
 	return q.removeAt(i).priority, true
 }
 
@@ -401,9 +425,11 @@ func (q *PriorityQueue[K, P]) Reset() {
 // Grow requires a non-nil receiver and panics on a nil one.
 func (q *PriorityQueue[K, P]) Grow(n int) {
 	shared.MustNotNil(q, "pqueue", "Grow")
+
 	if n <= 0 {
 		return
 	}
+
 	q.data = slices.Grow(q.data, n)
 }
 
@@ -442,6 +468,7 @@ func (q *PriorityQueue[K, P]) removeAt(i int) entry[K, P] {
 	e := q.data[i]
 	delete(q.pos, e.key)
 	q.data = heapcore.RemoveAtMoved(q.data, i, q.compare, q.moved)
+
 	return e
 }
 
@@ -457,6 +484,7 @@ func (q *PriorityQueue[K, P]) bindMoved() {
 // either q is nil or it is a zero-value PriorityQueue without a comparator.
 func (q *PriorityQueue[K, P]) mustStore(op string) {
 	shared.MustNotNil(q, "pqueue", op)
+
 	if q.compare == nil {
 		panic("pqueue: " + op + " on zero-value PriorityQueue; create it with New, NewMax, or NewFunc")
 	}
@@ -466,6 +494,7 @@ func newQueue[K comparable, P any](capacity int, compare func(a, b P) int) *Prio
 	if compare == nil {
 		panic("pqueue: nil comparator")
 	}
+
 	capacity = max(capacity, 0)
 	q := &PriorityQueue[K, P]{
 		data: make([]entry[K, P], 0, capacity),
@@ -474,10 +503,12 @@ func newQueue[K comparable, P any](capacity int, compare func(a, b P) int) *Prio
 			if c := compare(a.priority, b.priority); c != 0 {
 				return c
 			}
+
 			return cmp.Compare(a.seq, b.seq)
 		},
 	}
 	q.bindMoved()
+
 	return q
 }
 
@@ -487,6 +518,7 @@ func positions[K comparable, P any](s []entry[K, P]) map[K]int {
 	for i, e := range s {
 		pos[e.key] = i
 	}
+
 	return pos
 }
 
@@ -499,5 +531,6 @@ func items[K comparable, P any](s []entry[K, P]) []Item[K, P] {
 			Priority: e.priority,
 		}
 	}
+
 	return out
 }

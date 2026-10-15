@@ -29,6 +29,7 @@ func pseudo(n int) []int {
 		x ^= x << 5
 		s[i] = int(x % 1_000_000)
 	}
+
 	return s
 }
 
@@ -37,12 +38,14 @@ func filled(n int) *PriorityQueue[int, int] {
 	for k, p := range pseudo(n) {
 		q.Push(k, p)
 	}
+
 	return q
 }
 
 // BenchmarkPush measures inserting new keys into a growing queue.
 func BenchmarkPush(b *testing.B) {
 	ps := pseudo(benchSize)
+
 	b.ReportAllocs()
 
 	q := NewWithCap[int, int](benchSize)
@@ -53,6 +56,7 @@ func BenchmarkPush(b *testing.B) {
 			q.Reset()
 			b.StartTimer()
 		}
+
 		boolSink = q.Push(k, ps[k%benchSize])
 		k++
 	}
@@ -63,6 +67,7 @@ func BenchmarkPush(b *testing.B) {
 func BenchmarkPushUpdate(b *testing.B) {
 	q := filled(benchSize)
 	ps := pseudo(2 * benchSize)[benchSize:]
+
 	b.ReportAllocs()
 
 	i := 0
@@ -80,31 +85,39 @@ func BenchmarkPushPopCycle(b *testing.B) {
 
 	b.Run("pqueue", func(b *testing.B) {
 		q := filled(benchSize)
+
 		b.ReportAllocs()
+
 		k := benchSize
 		for b.Loop() {
 			_, p, _ := q.Pop()
 			q.Push(k, p+ps[k%benchSize])
 			k++
 		}
+
 		intSink = q.Len()
 	})
 
 	b.Run("binheap", func(b *testing.B) {
 		h := binheap.From(ps)
+
 		b.ReportAllocs()
+
 		k := benchSize
 		for b.Loop() {
 			v, _ := h.Pop()
 			h.Push(v + ps[k%benchSize])
 			k++
 		}
+
 		intSink = h.Len()
 	})
 
 	b.Run("container-heap", func(b *testing.B) {
 		h := newIndexedHeap(benchSize)
+
 		b.ReportAllocs()
+
 		k := benchSize
 		for b.Loop() {
 			it := heap.Pop(h).(*indexedItem)
@@ -112,6 +125,7 @@ func BenchmarkPushPopCycle(b *testing.B) {
 			h.push(k, it.priority+ps[k%benchSize])
 			k++
 		}
+
 		intSink = h.Len()
 	})
 }
@@ -119,6 +133,7 @@ func BenchmarkPushPopCycle(b *testing.B) {
 // BenchmarkRemove measures removing a key by identity and pushing it back.
 func BenchmarkRemove(b *testing.B) {
 	q := filled(benchSize)
+
 	b.ReportAllocs()
 
 	i := 0
@@ -139,7 +154,9 @@ func BenchmarkDijkstraMix(b *testing.B) {
 
 	b.Run("pqueue", func(b *testing.B) {
 		q := filled(benchSize)
+
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			k, p, _ := q.Pop()
@@ -149,15 +166,19 @@ func BenchmarkDijkstraMix(b *testing.B) {
 					q.Push(u, old-1)
 				}
 			}
+
 			q.Push(k, p+ps[i%benchSize])
 			i++
 		}
+
 		intSink = q.Len()
 	})
 
 	b.Run("container-heap", func(b *testing.B) {
 		h := newIndexedHeap(benchSize)
+
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			it := heap.Pop(h).(*indexedItem)
@@ -169,9 +190,11 @@ func BenchmarkDijkstraMix(b *testing.B) {
 					heap.Fix(h, e.index)
 				}
 			}
+
 			h.push(it.key, it.priority+ps[i%benchSize])
 			i++
 		}
+
 		intSink = h.Len()
 	})
 }
@@ -194,7 +217,9 @@ func newIndexedHeap(n int) *indexedHeap {
 		h.items = append(h.items, it)
 		h.byKey[k] = it
 	}
+
 	heap.Init(h)
+
 	return h
 }
 
@@ -223,5 +248,6 @@ func (h *indexedHeap) Pop() any {
 	old[n-1] = nil
 	h.items = old[:n-1]
 	it.index = -1
+
 	return it
 }
