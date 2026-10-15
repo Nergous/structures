@@ -1,6 +1,7 @@
 package orderedmap
 
 import (
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -11,8 +12,10 @@ import (
 // checkInvariants verifies every structural invariant of m.
 func checkInvariants[K comparable, V any](t *testing.T, m *Map[K, V]) {
 	t.Helper()
-	if len(m.index) != len(m.entries)-m.holes {
-		t.Fatalf("len(index)=%d, len(entries)=%d, holes=%d", len(m.index), len(m.entries), m.holes)
+
+	if got, want := len(m.index), len(m.entries)-m.holes; got != want {
+		t.Fatalf("len(index) = %d, want len(entries)-holes = %d (len(entries) = %d, holes = %d)",
+			got, want, len(m.entries), m.holes)
 	}
 
 	alive := 0
@@ -20,38 +23,50 @@ func checkInvariants[K comparable, V any](t *testing.T, m *Map[K, V]) {
 		if !e.alive {
 			var zero entry[K, V]
 			if any(e) != any(zero) {
-				t.Fatalf("hole at %d is not zeroed: %+v", i, e)
+				t.Fatalf("entries[%d] = %+v, want zero entry (holes must be zeroed)", i, e)
 			}
+
 			continue
 		}
+
 		alive++
 		if got, ok := m.index[e.key]; !ok || got != i {
-			t.Fatalf("key %v at %d, index records %d (present=%v)", e.key, i, got, ok)
+			t.Fatalf("index[%v] = (%d, %v), want (%d, true)", e.key, got, ok, i)
 		}
 	}
+
 	if alive != len(m.index) {
-		t.Fatalf("%d live entries, index has %d", alive, len(m.index))
+		t.Fatalf("live entries = %d, want len(index) = %d", alive, len(m.index))
 	}
 
 	if len(m.entries) == 0 {
-		if m.head != 0 || m.holes != 0 {
-			t.Fatalf("empty map: head=%d holes=%d", m.head, m.holes)
+		if m.head != 0 {
+			t.Fatalf("head on empty = %d, want 0", m.head)
 		}
+
+		if m.holes != 0 {
+			t.Fatalf("holes on empty = %d, want 0", m.holes)
+		}
+
 		return
 	}
-	if !m.entries[len(m.entries)-1].alive {
-		t.Fatal("last entry is a hole")
+
+	if last := len(m.entries) - 1; !m.entries[last].alive {
+		t.Fatalf("entries[%d].alive = false, want true (last entry must be live)", last)
 	}
+
 	if m.head < 0 || m.head >= len(m.entries) || !m.entries[m.head].alive {
-		t.Fatalf("head=%d does not point at a live entry", m.head)
+		t.Fatalf("head = %d, want index of a live entry in [0, %d)", m.head, len(m.entries))
 	}
+
 	for i := 0; i < m.head; i++ {
 		if m.entries[i].alive {
-			t.Fatalf("live entry %d before head %d", i, m.head)
+			t.Fatalf("entries[%d].alive = true, want false (before head %d)", i, m.head)
 		}
 	}
+
 	if len(m.entries) >= minCompact && m.holes > len(m.entries)/2 {
-		t.Fatalf("holes=%d exceed half of %d entries", m.holes, len(m.entries))
+		t.Fatalf("holes = %d, want <= %d (half of %d entries)", m.holes, len(m.entries)/2, len(m.entries))
 	}
 }
 
@@ -64,137 +79,195 @@ func fill(n int) *Map[int, int] {
 	for i := 1; i <= n; i++ {
 		m.Set(i, i*10)
 	}
+
 	return m
 }
 
-func TestNewWithCap(t *testing.T) {
-	if m := NewWithCap[int, int](16); m.Cap() < 16 || m.Len() != 0 {
-		t.Fatalf("Len=%d Cap=%d", m.Len(), m.Cap())
+func TestMap_NewWithCap(t *testing.T) {
+	m := NewWithCap[int, int](16)
+
+	if got := m.Len(); got != 0 {
+		t.Errorf("Len() = %d, want 0", got)
 	}
-	if m := NewWithCap[int, int](-3); m.Cap() != 0 {
-		t.Fatalf("negative capacity: Cap=%d", m.Cap())
+
+	if got := m.Cap(); got < 16 {
+		t.Errorf("Cap() = %d, want >= 16", got)
+	}
+
+	if got := NewWithCap[int, int](-3).Cap(); got != 0 {
+		t.Errorf("NewWithCap(-3).Cap() = %d, want 0", got)
 	}
 }
 
-func TestSetGet_Order(t *testing.T) {
+func TestMap_SetGet(t *testing.T) {
 	m := New[string, int]()
-	if !m.Set("b", 2) || !m.Set("a", 1) || !m.Set("c", 3) {
-		t.Fatal("Set of a new key must report true")
+
+	if got := m.Set("b", 2); !got {
+		t.Errorf("Set(b, 2) = %v, want true", got)
 	}
-	if m.Set("a", 10) {
-		t.Fatal("Set of an existing key must report false")
+
+	if got := m.Set("a", 1); !got {
+		t.Errorf("Set(a, 1) = %v, want true", got)
 	}
+
+	if got := m.Set("c", 3); !got {
+		t.Errorf("Set(c, 3) = %v, want true", got)
+	}
+
+	if got := m.Set("a", 10); got {
+		t.Errorf("Set(a, 10) on existing = %v, want false", got)
+	}
+
 	if got, want := keys(m), []string{"b", "a", "c"}; !slices.Equal(got, want) {
-		t.Fatalf("order %v, want %v", got, want)
+		t.Errorf("Keys() = %v, want %v", got, want)
 	}
-	if v, ok := m.Get("a"); !ok || v != 10 {
-		t.Fatalf("Get(a) = %v %v", v, ok)
+
+	if got, ok := m.Get("a"); !ok || got != 10 {
+		t.Errorf("Get(a) = (%d, %v), want (10, true)", got, ok)
 	}
-	if v, ok := m.Get("zzz"); ok || v != 0 {
-		t.Fatalf("Get(zzz) = %v %v", v, ok)
+
+	if got, ok := m.Get("zzz"); ok || got != 0 {
+		t.Errorf("Get(zzz) = (%d, %v), want (0, false)", got, ok)
 	}
-	if !m.Contains("c") || m.Contains("zzz") {
-		t.Fatal("Contains mismatch")
+
+	if got := m.Contains("c"); !got {
+		t.Errorf("Contains(c) = %v, want true", got)
 	}
+
+	if got := m.Contains("zzz"); got {
+		t.Errorf("Contains(zzz) = %v, want false", got)
+	}
+
 	checkInvariants(t, m)
 }
 
-func TestFirstLast(t *testing.T) {
+func TestMap_FirstLast(t *testing.T) {
 	m := New[int, int]()
+
 	if _, _, ok := m.First(); ok {
-		t.Fatal("First on empty map")
+		t.Errorf("First() on empty: ok = %v, want false", ok)
 	}
+
 	if _, _, ok := m.Last(); ok {
-		t.Fatal("Last on empty map")
+		t.Errorf("Last() on empty: ok = %v, want false", ok)
 	}
 
 	m.Set(1, 10)
-	k, v, ok := m.First()
-	if !ok || k != 1 || v != 10 {
-		t.Fatalf("First = %v %v %v", k, v, ok)
+
+	if gotKey, gotValue, ok := m.First(); !ok || gotKey != 1 || gotValue != 10 {
+		t.Errorf("First() = (%d, %d, %v), want (1, 10, true)", gotKey, gotValue, ok)
 	}
-	if k, _, ok = m.Last(); !ok || k != 1 {
-		t.Fatalf("Last of single = %v %v", k, ok)
+
+	if gotKey, gotValue, ok := m.Last(); !ok || gotKey != 1 || gotValue != 10 {
+		t.Errorf("Last() on single = (%d, %d, %v), want (1, 10, true)", gotKey, gotValue, ok)
 	}
 
 	m.Set(2, 20)
 	m.Set(3, 30)
 	m.Remove(1)
-	if k, _, _ = m.First(); k != 2 {
-		t.Fatalf("First after removing head = %d, want 2", k)
+
+	if got, _, _ := m.First(); got != 2 {
+		t.Errorf("First() key after Remove(1) = %d, want 2 (head removed)", got)
 	}
+
 	m.Remove(3)
-	if k, _, _ = m.Last(); k != 2 {
-		t.Fatalf("Last after removing tail = %d, want 2", k)
+
+	if got, _, _ := m.Last(); got != 2 {
+		t.Errorf("Last() key after Remove(3) = %d, want 2 (tail removed)", got)
 	}
+
 	checkInvariants(t, m)
 }
 
-func TestRemove_HeadTailMiddleOnly(t *testing.T) {
-	m := fill(6)
-	for _, k := range []int{1, 6, 3} { // head, tail, middle
-		if v, ok := m.Remove(k); !ok || v != k*10 {
-			t.Fatalf("Remove(%d) = %v %v", k, v, ok)
+func TestMap_Remove(t *testing.T) {
+	t.Run("head tail middle and only", func(t *testing.T) {
+		m := fill(6)
+
+		for _, k := range []int{1, 6, 3} { // head, tail, middle
+			if got, ok := m.Remove(k); !ok || got != k*10 {
+				t.Fatalf("Remove(%d) = (%d, %v), want (%d, true)", k, got, ok, k*10)
+			}
+
+			checkInvariants(t, m)
 		}
+
+		if got, want := keys(m), []int{2, 4, 5}; !slices.Equal(got, want) {
+			t.Errorf("Keys() = %v, want %v", got, want)
+		}
+
+		if got, ok := m.Remove(3); ok || got != 0 {
+			t.Errorf("Remove(3) on removed = (%d, %v), want (0, false)", got, ok)
+		}
+
+		for _, k := range []int{2, 4, 5} {
+			m.Remove(k)
+
+			checkInvariants(t, m)
+		}
+
+		if got := m.IsEmpty(); !got {
+			t.Errorf("IsEmpty() after removing all = %v, want true", got)
+		}
+
+		if got := len(m.entries); got != 0 {
+			t.Errorf("len(entries) after removing all = %d, want 0", got)
+		}
+
+		m.Set(9, 90) // usable again
+
+		if got, _, _ := m.First(); got != 9 {
+			t.Errorf("First() key after reuse = %d, want 9", got)
+		}
+
 		checkInvariants(t, m)
-	}
-	if got, want := keys(m), []int{2, 4, 5}; !slices.Equal(got, want) {
-		t.Fatalf("order %v, want %v", got, want)
-	}
-	if v, ok := m.Remove(3); ok || v != 0 {
-		t.Fatalf("second Remove(3) = %v %v", v, ok)
-	}
-	for _, k := range []int{2, 4, 5} {
-		m.Remove(k)
-		checkInvariants(t, m)
-	}
-	if !m.IsEmpty() || len(m.entries) != 0 {
-		t.Fatalf("map not empty: %d entries", len(m.entries))
-	}
-	m.Set(9, 90) // usable again
-	if k, _, _ := m.First(); k != 9 {
-		t.Fatal("First after reuse")
-	}
-	checkInvariants(t, m)
+	})
+
+	t.Run("zeroes key and value", func(t *testing.T) {
+		m := New[*int, *int]()
+		a, b, c := new(int), new(int), new(int)
+		m.Set(a, a)
+		m.Set(b, b)
+		m.Set(c, c)
+		m.Remove(b) // middle: a hole stays in the slice
+		m.Remove(c) // tail: trimmed, slot must still be zero
+
+		for i, got := range m.entries[:cap(m.entries)] {
+			if i >= 1 && got != (entry[*int, *int]{}) {
+				t.Errorf("entries[%d] = %+v, want zero entry (removed slot must not retain references)", i, got)
+			}
+		}
+	})
 }
 
-func TestRemove_ZeroesKeyAndValue(t *testing.T) {
-	m := New[*int, *int]()
-	a, b, c := new(int), new(int), new(int)
-	m.Set(a, a)
-	m.Set(b, b)
-	m.Set(c, c)
-	m.Remove(b) // middle: a hole stays in the slice
-	m.Remove(c) // tail: trimmed, slot must still be zero
-	for i, e := range m.entries[:cap(m.entries)] {
-		if i >= 1 && e != (entry[*int, *int]{}) {
-			t.Fatalf("slot %d retains %+v", i, e)
-		}
-	}
-}
-
-func TestPopFirstLast(t *testing.T) {
+func TestMap_PopFirstLast(t *testing.T) {
 	m := fill(4)
-	if k, v, ok := m.PopFirst(); !ok || k != 1 || v != 10 {
-		t.Fatalf("PopFirst = %v %v %v", k, v, ok)
+
+	if gotKey, gotValue, ok := m.PopFirst(); !ok || gotKey != 1 || gotValue != 10 {
+		t.Errorf("PopFirst() = (%d, %d, %v), want (1, 10, true)", gotKey, gotValue, ok)
 	}
-	if k, v, ok := m.PopLast(); !ok || k != 4 || v != 40 {
-		t.Fatalf("PopLast = %v %v %v", k, v, ok)
+
+	if gotKey, gotValue, ok := m.PopLast(); !ok || gotKey != 4 || gotValue != 40 {
+		t.Errorf("PopLast() = (%d, %d, %v), want (4, 40, true)", gotKey, gotValue, ok)
 	}
+
 	checkInvariants(t, m)
+
 	m.PopFirst()
 	m.PopLast()
+
 	checkInvariants(t, m)
+
 	if _, _, ok := m.PopFirst(); ok {
-		t.Fatal("PopFirst on empty map")
+		t.Errorf("PopFirst() on empty: ok = %v, want false", ok)
 	}
+
 	if _, _, ok := m.PopLast(); ok {
-		t.Fatal("PopLast on empty map")
+		t.Errorf("PopLast() on empty: ok = %v, want false", ok)
 	}
 }
 
 // A queue that never holds more than a few keys must not grow without bound.
-func TestQueueUsage_BoundedMemory(t *testing.T) {
+func TestMap_QueueUsageBoundedMemory(t *testing.T) {
 	m := New[int, int]()
 	for i := range 100_000 {
 		m.Set(i, i)
@@ -202,86 +275,120 @@ func TestQueueUsage_BoundedMemory(t *testing.T) {
 			m.PopFirst()
 		}
 	}
+
 	checkInvariants(t, m)
-	if len(m.entries) > 2*minCompact {
-		t.Fatalf("entries grew to %d with %d live keys", len(m.entries), m.Len())
+
+	if got := len(m.entries); got > 2*minCompact {
+		t.Errorf("len(entries) = %d, want <= %d (%d live keys)", got, 2*minCompact, m.Len())
 	}
 }
 
-func TestMoveToBack(t *testing.T) {
+func TestMap_MoveToBack(t *testing.T) {
 	m := fill(4)
-	if !m.MoveToBack(2) {
-		t.Fatal("MoveToBack(2) = false")
+
+	if got := m.MoveToBack(2); !got {
+		t.Errorf("MoveToBack(2) = %v, want true", got)
 	}
+
 	if got, want := keys(m), []int{1, 3, 4, 2}; !slices.Equal(got, want) {
-		t.Fatalf("order %v, want %v", got, want)
+		t.Errorf("Keys() after MoveToBack(2) = %v, want %v", got, want)
 	}
-	if v, _ := m.Get(2); v != 20 {
-		t.Fatalf("value changed to %d", v)
+
+	if got, _ := m.Get(2); got != 20 {
+		t.Errorf("Get(2) after MoveToBack(2) = %d, want 20 (value must not change)", got)
 	}
+
 	checkInvariants(t, m)
 
 	before := len(m.entries)
-	if !m.MoveToBack(2) || len(m.entries) != before { // already newest: no-op
-		t.Fatal("MoveToBack of the newest key must be a no-op")
+
+	if got := m.MoveToBack(2); !got { // already newest: no-op
+		t.Errorf("MoveToBack(2) on newest = %v, want true", got)
 	}
+
+	if got := len(m.entries); got != before {
+		t.Errorf("len(entries) after MoveToBack(2) on newest = %d, want %d (no-op)", got, before)
+	}
+
 	m.MoveToBack(1) // head
+
 	if got, want := keys(m), []int{3, 4, 2, 1}; !slices.Equal(got, want) {
-		t.Fatalf("order %v, want %v", got, want)
+		t.Errorf("Keys() after MoveToBack(1) = %v, want %v", got, want)
 	}
-	if m.MoveToBack(99) {
-		t.Fatal("MoveToBack of a missing key reported true")
+
+	if got := m.MoveToBack(99); got {
+		t.Errorf("MoveToBack(99) on missing = %v, want false", got)
 	}
+
 	checkInvariants(t, m)
 
 	single := New[int, int]()
 	single.Set(1, 1)
-	if !single.MoveToBack(1) {
-		t.Fatal("single key")
+
+	if got := single.MoveToBack(1); !got {
+		t.Errorf("MoveToBack(1) on single = %v, want true", got)
 	}
+
 	checkInvariants(t, single)
 }
 
-func TestRemoveFunc(t *testing.T) {
+func TestMap_RemoveFunc(t *testing.T) {
 	m := fill(40)
 	m.Remove(5) // leave a hole so RemoveFunc has one to skip
 	m.Remove(7)
 
 	seen := 0
-	n := m.RemoveFunc(func(k, v int) bool {
+	got := m.RemoveFunc(func(k, v int) bool {
 		seen++
 		if k == 0 {
-			t.Fatal("predicate called on a hole")
+			t.Fatalf("predicate called with key %d, want live keys only (hole visited)", k)
 		}
+
 		return k%2 == 0
 	})
-	if seen != 38 || n != 20 {
-		t.Fatalf("seen=%d removed=%d, want 38 and 20", seen, n)
+
+	if seen != 38 {
+		t.Errorf("predicate calls = %d, want 38", seen)
 	}
+
+	if got != 20 {
+		t.Errorf("RemoveFunc(even) = %d, want 20", got)
+	}
+
 	checkInvariants(t, m)
-	if m.holes != 0 {
-		t.Fatalf("holes=%d after RemoveFunc", m.holes)
+
+	if got := m.holes; got != 0 {
+		t.Errorf("holes after RemoveFunc() = %d, want 0", got)
 	}
+
 	for k := range m.Keys() {
 		if k%2 == 0 {
-			t.Fatalf("even key %d survived", k)
+			t.Errorf("Keys() after RemoveFunc(even) yielded %d, want odd keys only", k)
 		}
 	}
-	if first, _, _ := m.First(); first != 1 {
-		t.Fatalf("First = %d", first)
+
+	if got, _, _ := m.First(); got != 1 {
+		t.Errorf("First() key after RemoveFunc(even) = %d, want 1", got)
 	}
 
-	if m.RemoveFunc(func(int, int) bool { return true }) != 18 || !m.IsEmpty() {
-		t.Fatal("removing everything")
+	if got := m.RemoveFunc(func(int, int) bool { return true }); got != 18 {
+		t.Errorf("RemoveFunc(all) = %d, want 18", got)
 	}
+
+	if got := m.IsEmpty(); !got {
+		t.Errorf("IsEmpty() after RemoveFunc(all) = %v, want true", got)
+	}
+
 	checkInvariants(t, m)
-	if m.RemoveFunc(func(int, int) bool { return true }) != 0 {
-		t.Fatal("RemoveFunc on empty map")
+
+	if got := m.RemoveFunc(func(int, int) bool { return true }); got != 0 {
+		t.Errorf("RemoveFunc(all) on empty = %d, want 0", got)
 	}
-	sharedtest.Panics(t, "call", "nil predicate", func() { m.RemoveFunc(nil) })
+
+	sharedtest.Panics(t, "RemoveFunc(nil)", "nil predicate", func() { m.RemoveFunc(nil) })
 }
 
-func TestIterators_SkipHoles(t *testing.T) {
+func TestMap_IteratorsSkipHoles(t *testing.T) {
 	m := fill(8)
 	m.Remove(2)
 	m.Remove(5)
@@ -289,91 +396,127 @@ func TestIterators_SkipHoles(t *testing.T) {
 	var fwd, bwd []int
 	for k, v := range m.All() {
 		if v != k*10 {
-			t.Fatalf("pair %d=%d", k, v)
+			t.Errorf("All() yielded (%d, %d), want (%d, %d)", k, v, k, k*10)
 		}
+
 		fwd = append(fwd, k)
 	}
+
 	for k := range m.Backward() {
 		bwd = append(bwd, k)
 	}
+
 	want := []int{1, 3, 4, 6, 7, 8}
 	if !slices.Equal(fwd, want) {
-		t.Fatalf("All = %v", fwd)
+		t.Errorf("All() keys = %v, want %v", fwd, want)
 	}
+
 	slices.Reverse(bwd)
 	if !slices.Equal(bwd, want) {
-		t.Fatalf("Backward reversed = %v", bwd)
-	}
-	if got := slices.Collect(m.Values()); !slices.Equal(got, []int{10, 30, 40, 60, 70, 80}) {
-		t.Fatalf("Values = %v", got)
+		t.Errorf("Backward() keys reversed = %v, want %v", bwd, want)
 	}
 
-	for name, seq := range map[string]func() int{
-		"All": func() (n int) {
-			for range m.All() {
-				n++
-				break
-			}
-			return
-		},
-		"Backward": func() (n int) {
-			for range m.Backward() {
-				n++
-				break
-			}
-			return
-		},
-		"Keys": func() (n int) {
-			for range m.Keys() {
-				n++
-				break
-			}
-			return
-		},
-		"Values": func() (n int) {
-			for range m.Values() {
-				n++
-				break
-			}
-			return
-		},
-	} {
-		if seq() != 1 {
-			t.Fatalf("%s: early break did not stop iteration", name)
-		}
+	if got, want := slices.Collect(m.Values()), []int{10, 30, 40, 60, 70, 80}; !slices.Equal(got, want) {
+		t.Errorf("Values() = %v, want %v", got, want)
 	}
+
+	t.Run("early break stops iteration", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			count func() int
+		}{
+			{
+				name: "All",
+				count: func() (n int) {
+					for range m.All() {
+						n++
+						break
+					}
+
+					return
+				},
+			},
+			{
+				name: "Backward",
+				count: func() (n int) {
+					for range m.Backward() {
+						n++
+						break
+					}
+
+					return
+				},
+			},
+			{
+				name: "Keys",
+				count: func() (n int) {
+					for range m.Keys() {
+						n++
+						break
+					}
+
+					return
+				},
+			},
+			{
+				name: "Values",
+				count: func() (n int) {
+					for range m.Values() {
+						n++
+						break
+					}
+
+					return
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				if got := tt.count(); got != 1 {
+					t.Errorf("%s() with early break count = %d, want 1", tt.name, got)
+				}
+			})
+		}
+	})
 }
 
-func TestCompaction(t *testing.T) {
+func TestMap_Compaction(t *testing.T) {
 	m := fill(64)
-	c := cap(m.entries)
+	capBefore := cap(m.entries)
 	for k := 1; k <= 40; k++ {
 		m.Remove(k)
+
 		checkInvariants(t, m)
 	}
-	if m.holes != 0 && m.holes > len(m.entries)/2 {
-		t.Fatal("compaction did not run")
+
+	if got := m.holes; got != 0 && got > len(m.entries)/2 {
+		t.Errorf("holes = %d, want <= %d (compaction did not run)", got, len(m.entries)/2)
 	}
-	if cap(m.entries) != c {
-		t.Fatalf("compaction changed Cap from %d to %d", c, cap(m.entries))
+
+	if got := cap(m.entries); got != capBefore {
+		t.Errorf("cap(entries) after compaction = %d, want %d (compaction must preserve capacity)", got, capBefore)
 	}
+
 	want := make([]int, 0, 24)
 	for k := 41; k <= 64; k++ {
 		want = append(want, k)
 	}
+
 	if got := keys(m); !slices.Equal(got, want) {
-		t.Fatalf("order after compaction %v", got)
+		t.Errorf("Keys() after compaction = %v, want %v", got, want)
 	}
+
 	for k := 41; k <= 64; k++ {
-		if v, ok := m.Get(k); !ok || v != k*10 {
-			t.Fatalf("Get(%d) = %v %v after compaction", k, v, ok)
+		if got, ok := m.Get(k); !ok || got != k*10 {
+			t.Errorf("Get(%d) after compaction = (%d, %v), want (%d, true)", k, got, ok, k*10)
 		}
 	}
 }
 
-// TestRandomOps runs a long random mix of operations against a slice-of-keys
-// reference model and checks the invariants after every step.
-func TestRandomOps(t *testing.T) {
+// TestMap_RandomOps runs a long random mix of operations against a
+// slice-of-keys reference model and checks the invariants after every step.
+func TestMap_RandomOps(t *testing.T) {
 	r := rand.New(rand.NewPCG(21, 22))
 	m := New[int, int]()
 	var order []int
@@ -384,263 +527,410 @@ func TestRandomOps(t *testing.T) {
 		delete(vals, k)
 	}
 
-	for step := range 30000 {
+	for i := range 30000 {
 		k := 1 + r.IntN(120)
 		switch op := r.IntN(14); {
 		case op < 5:
 			v := r.IntN(1000)
 			_, existed := vals[k]
-			if isNew := m.Set(k, v); isNew == existed {
-				t.Fatalf("Set(%d) new=%v, existed=%v", k, isNew, existed)
+			if got := m.Set(k, v); got == existed {
+				t.Fatalf("Set(%d, %d) #%d = %v, want %v", k, v, i, got, !existed)
 			}
+
 			if !existed {
 				order = append(order, k)
 			}
+
 			vals[k] = v
 		case op < 8:
-			v, ok := m.Remove(k)
-			if want, has := vals[k]; ok != has || (ok && v != want) {
-				t.Fatalf("Remove(%d) = %v %v", k, v, ok)
+			got, ok := m.Remove(k)
+			if want, has := vals[k]; ok != has || (ok && got != want) {
+				t.Fatalf("Remove(%d) #%d = (%d, %v), want (%d, %v)", k, i, got, ok, want, has)
 			}
+
 			del(k)
 		case op < 9:
-			k, v, ok := m.PopFirst()
-			if ok != (len(order) > 0) || (ok && (k != order[0] || v != vals[k])) {
-				t.Fatalf("PopFirst = %v %v %v", k, v, ok)
+			gotKey, gotValue, ok := m.PopFirst()
+			if ok != (len(order) > 0) || (ok && (gotKey != order[0] || gotValue != vals[gotKey])) {
+				t.Fatalf("PopFirst() #%d = (%d, %d, %v), want oldest of %v", i, gotKey, gotValue, ok, order)
 			}
+
 			if ok {
-				del(k)
+				del(gotKey)
 			}
 		case op < 10:
-			k, v, ok := m.PopLast()
-			if ok != (len(order) > 0) || (ok && (k != order[len(order)-1] || v != vals[k])) {
-				t.Fatalf("PopLast = %v %v %v", k, v, ok)
+			gotKey, gotValue, ok := m.PopLast()
+			if ok != (len(order) > 0) || (ok && (gotKey != order[len(order)-1] || gotValue != vals[gotKey])) {
+				t.Fatalf("PopLast() #%d = (%d, %d, %v), want newest of %v", i, gotKey, gotValue, ok, order)
 			}
+
 			if ok {
-				del(k)
+				del(gotKey)
 			}
 		case op < 12:
 			_, has := vals[k]
-			if m.MoveToBack(k) != has {
-				t.Fatalf("MoveToBack(%d) mismatch", k)
+			if got := m.MoveToBack(k); got != has {
+				t.Fatalf("MoveToBack(%d) #%d = %v, want %v", k, i, got, has)
 			}
+
 			if has {
 				del2 := slices.Index(order, k)
 				order = append(slices.Delete(order, del2, del2+1), k)
 			}
-		case op < 13 && step%40 == 0:
+		case op < 13 && i%40 == 0:
 			mod := 2 + r.IntN(4)
-			removed := m.RemoveFunc(func(k, _ int) bool { return k%mod == 0 })
+			got := m.RemoveFunc(func(k, _ int) bool { return k%mod == 0 })
 			before := len(order)
 			for _, x := range slices.Clone(order) {
 				if x%mod == 0 {
 					del(x)
 				}
 			}
-			if removed != before-len(order) {
-				t.Fatalf("RemoveFunc removed %d, want %d", removed, before-len(order))
+
+			if want := before - len(order); got != want {
+				t.Fatalf("RemoveFunc(multiples of %d) #%d = %d, want %d", mod, i, got, want)
 			}
-		case step%97 == 0:
+		case i%97 == 0:
 			m.Shrink()
 		}
 
 		checkInvariants(t, m)
+
 		if got := keys(m); !slices.Equal(got, order) {
-			t.Fatalf("step %d: order %v, want %v", step, got, order)
+			t.Fatalf("Keys() #%d = %v, want %v", i, got, order)
 		}
-		if m.Len() != len(order) {
-			t.Fatalf("Len=%d, want %d", m.Len(), len(order))
+
+		if got := m.Len(); got != len(order) {
+			t.Fatalf("Len() #%d = %d, want %d", i, got, len(order))
 		}
-		for k, v := range vals {
-			if got, ok := m.Get(k); !ok || got != v {
-				t.Fatalf("Get(%d) = %v %v, want %v", k, got, ok, v)
+
+		for k, want := range vals {
+			if got, ok := m.Get(k); !ok || got != want {
+				t.Fatalf("Get(%d) #%d = (%d, %v), want (%d, true)", k, i, got, ok, want)
 			}
 		}
 	}
 }
 
-func TestClone(t *testing.T) {
-	m := fill(40)
-	for k := 1; k <= 10; k++ {
-		m.Remove(k)
-	}
-	c := m.Clone()
-	checkInvariants(t, c)
-	if c.holes != 0 || c.Cap() != c.Len() {
-		t.Fatalf("clone holes=%d Cap=%d Len=%d", c.holes, c.Cap(), c.Len())
-	}
-	if !slices.Equal(keys(c), keys(m)) {
-		t.Fatal("clone order differs")
-	}
+func TestMap_Clone(t *testing.T) {
+	t.Run("is independent of the original", func(t *testing.T) {
+		m := fill(40)
+		for k := 1; k <= 10; k++ {
+			m.Remove(k)
+		}
 
-	c.Set(1000, 1)
-	c.Remove(11)
-	c.MoveToBack(12)
-	checkInvariants(t, c)
-	checkInvariants(t, m)
-	if m.Contains(1000) || !m.Contains(11) || m.Len() != 30 {
-		t.Fatal("mutating the clone changed the original")
-	}
+		c := m.Clone()
 
-	var nilMap *Map[int, int]
-	n := nilMap.Clone()
-	if n == nil || !n.IsEmpty() {
-		t.Fatal("Clone of nil must be an empty map")
-	}
-	n.Set(1, 1) // usable
-	checkInvariants(t, n)
+		checkInvariants(t, c)
+
+		if got := c.holes; got != 0 {
+			t.Errorf("holes of clone = %d, want 0", got)
+		}
+
+		if got, want := c.Cap(), c.Len(); got != want {
+			t.Errorf("Cap() of clone = %d, want Len() = %d", got, want)
+		}
+
+		if got, want := keys(c), keys(m); !slices.Equal(got, want) {
+			t.Errorf("Keys() of clone = %v, want %v", got, want)
+		}
+
+		c.Set(1000, 1)
+		c.Remove(11)
+		c.MoveToBack(12)
+
+		checkInvariants(t, c)
+		checkInvariants(t, m)
+
+		if got := m.Contains(1000); got {
+			t.Errorf("original Contains(1000) = %v, want false (clone must be independent)", got)
+		}
+
+		if got := m.Contains(11); !got {
+			t.Errorf("original Contains(11) = %v, want true (clone must be independent)", got)
+		}
+
+		if got := m.Len(); got != 30 {
+			t.Errorf("original Len() = %d, want 30", got)
+		}
+	})
+
+	t.Run("nil clone returns usable empty map", func(t *testing.T) {
+		var m *Map[int, int]
+
+		c := m.Clone()
+		if c == nil {
+			t.Fatalf("nil.Clone() = nil, want usable empty map")
+		}
+
+		if got := c.IsEmpty(); !got {
+			t.Errorf("nil.Clone().IsEmpty() = %v, want true", got)
+		}
+
+		c.Set(1, 1) // usable
+
+		checkInvariants(t, c)
+	})
 }
 
-func TestShrink(t *testing.T) {
+func TestMap_Shrink(t *testing.T) {
 	m := NewWithCap[int, int](100)
 	for k := 1; k <= 10; k++ {
 		m.Set(k, k)
 	}
+
 	m.Remove(2)
 	m.Remove(1)
 	m.Shrink()
+
 	checkInvariants(t, m)
-	if m.Cap() != m.Len() || m.Len() != 8 || m.holes != 0 {
-		t.Fatalf("Len=%d Cap=%d holes=%d", m.Len(), m.Cap(), m.holes)
+
+	if got := m.Len(); got != 8 {
+		t.Errorf("Len() after Shrink() = %d, want 8", got)
 	}
+
+	if got, want := m.Cap(), m.Len(); got != want {
+		t.Errorf("Cap() after Shrink() = %d, want Len() = %d", got, want)
+	}
+
+	if got := m.holes; got != 0 {
+		t.Errorf("holes after Shrink() = %d, want 0", got)
+	}
+
 	if got, want := keys(m), []int{3, 4, 5, 6, 7, 8, 9, 10}; !slices.Equal(got, want) {
-		t.Fatalf("Shrink lost data: %v", got)
+		t.Errorf("Keys() after Shrink() = %v, want %v", got, want)
 	}
+
 	for k := 3; k <= 10; k++ {
-		if v, ok := m.Get(k); !ok || v != k {
-			t.Fatalf("Get(%d) = %v %v after Shrink", k, v, ok)
+		if got, ok := m.Get(k); !ok || got != k {
+			t.Errorf("Get(%d) after Shrink() = (%d, %v), want (%d, true)", k, got, ok, k)
 		}
 	}
+
 	m.Shrink() // already tight
+
 	checkInvariants(t, m)
+
 	m.Set(99, 99)
+
 	checkInvariants(t, m)
 }
 
-func TestGrowClip(t *testing.T) {
+func TestMap_GrowClip(t *testing.T) {
 	m := New[int, int]()
 	m.Grow(50)
-	if m.Cap() < 50 {
-		t.Fatalf("Grow(50): Cap=%d", m.Cap())
+
+	if got := m.Cap(); got < 50 {
+		t.Errorf("Cap() after Grow(50) = %d, want >= 50", got)
 	}
+
 	m.Grow(0)
 	m.Grow(-1)
 	m.Set(1, 1)
 	m.Set(2, 2)
 	m.Clip()
-	if m.Cap() != 2 {
-		t.Fatalf("Clip: Cap=%d", m.Cap())
+
+	if got := m.Cap(); got != 2 {
+		t.Errorf("Cap() after Clip() = %d, want 2", got)
 	}
+
 	m.Set(3, 3)
+
 	checkInvariants(t, m)
 }
 
-func TestResetClear(t *testing.T) {
+func TestMap_ResetClear(t *testing.T) {
 	m := NewWithCap[int, int](8)
 	m.Set(1, 1)
 	m.Set(2, 2)
 	m.Remove(1)
 
 	m.Reset()
-	if m.Len() != 0 || m.Cap() != 8 || m.Contains(2) {
-		t.Fatalf("after Reset: Len=%d Cap=%d", m.Len(), m.Cap())
+
+	if got := m.Len(); got != 0 {
+		t.Errorf("Len() after Reset() = %d, want 0", got)
 	}
+
+	if got := m.Cap(); got != 8 {
+		t.Errorf("Cap() after Reset() = %d, want 8", got)
+	}
+
+	if got := m.Contains(2); got {
+		t.Errorf("Contains(2) after Reset() = %v, want false", got)
+	}
+
 	checkInvariants(t, m)
+
 	m.Set(3, 3)
+
 	checkInvariants(t, m)
 
 	m.Clear()
-	if m.Len() != 0 || m.Cap() != 0 || m.Contains(3) {
-		t.Fatalf("after Clear: Len=%d Cap=%d", m.Len(), m.Cap())
+
+	if got := m.Len(); got != 0 {
+		t.Errorf("Len() after Clear() = %d, want 0", got)
 	}
+
+	if got := m.Cap(); got != 0 {
+		t.Errorf("Cap() after Clear() = %d, want 0", got)
+	}
+
+	if got := m.Contains(3); got {
+		t.Errorf("Contains(3) after Clear() = %v, want false", got)
+	}
+
 	checkInvariants(t, m)
+
 	m.Set(4, 4)
-	if k, _, _ := m.First(); k != 4 {
-		t.Fatal("map unusable after Clear")
+
+	if got, _, _ := m.First(); got != 4 {
+		t.Errorf("First() key after Clear() and Set(4, 4) = %d, want 4", got)
 	}
 }
 
-func TestNilReceiver(t *testing.T) {
+func TestMap_NilReceiver(t *testing.T) {
 	var m *Map[string, int]
 
-	if m.Len() != 0 || m.Cap() != 0 || !m.IsEmpty() || m.Contains("a") {
-		t.Fatal("nil map must read as empty")
-	}
-	if _, ok := m.Get("a"); ok {
-		t.Fatal("Get on nil")
-	}
-	if _, _, ok := m.First(); ok {
-		t.Fatal("First on nil")
-	}
-	if _, _, ok := m.Last(); ok {
-		t.Fatal("Last on nil")
-	}
-	if _, ok := m.Remove("a"); ok {
-		t.Fatal("Remove on nil")
-	}
-	if m.RemoveFunc(func(string, int) bool { return true }) != 0 {
-		t.Fatal("RemoveFunc on nil")
-	}
-	if _, _, ok := m.PopFirst(); ok {
-		t.Fatal("PopFirst on nil")
-	}
-	if _, _, ok := m.PopLast(); ok {
-		t.Fatal("PopLast on nil")
-	}
-	if m.MoveToBack("a") {
-		t.Fatal("MoveToBack on nil")
-	}
-	for range m.All() {
-		t.Fatal("All on nil yielded")
-	}
-	for range m.Backward() {
-		t.Fatal("Backward on nil yielded")
-	}
-	for range m.Keys() {
-		t.Fatal("Keys on nil yielded")
-	}
-	for range m.Values() {
-		t.Fatal("Values on nil yielded")
+	if got := m.Len(); got != 0 {
+		t.Errorf("nil.Len() = %d, want 0", got)
 	}
 
-	for name, f := range map[string]func(){
-		"Set":    func() { m.Set("a", 1) },
-		"Grow":   func() { m.Grow(1) },
-		"Clear":  func() { m.Clear() },
-		"Reset":  func() { m.Reset() },
-		"Shrink": func() { m.Shrink() },
-		"Clip":   func() { m.Clip() },
-	} {
-		sharedtest.Panics(t, name, name+" on nil receiver", f)
+	if got := m.Cap(); got != 0 {
+		t.Errorf("nil.Cap() = %d, want 0", got)
 	}
+
+	if got := m.IsEmpty(); !got {
+		t.Errorf("nil.IsEmpty() = %v, want true", got)
+	}
+
+	if got := m.Contains("a"); got {
+		t.Errorf("nil.Contains(a) = %v, want false", got)
+	}
+
+	if _, ok := m.Get("a"); ok {
+		t.Errorf("nil.Get(a): ok = %v, want false", ok)
+	}
+
+	if _, _, ok := m.First(); ok {
+		t.Errorf("nil.First(): ok = %v, want false", ok)
+	}
+
+	if _, _, ok := m.Last(); ok {
+		t.Errorf("nil.Last(): ok = %v, want false", ok)
+	}
+
+	if _, ok := m.Remove("a"); ok {
+		t.Errorf("nil.Remove(a): ok = %v, want false", ok)
+	}
+
+	if got := m.RemoveFunc(func(string, int) bool { return true }); got != 0 {
+		t.Errorf("nil.RemoveFunc(all) = %d, want 0", got)
+	}
+
+	if _, _, ok := m.PopFirst(); ok {
+		t.Errorf("nil.PopFirst(): ok = %v, want false", ok)
+	}
+
+	if _, _, ok := m.PopLast(); ok {
+		t.Errorf("nil.PopLast(): ok = %v, want false", ok)
+	}
+
+	if got := m.MoveToBack("a"); got {
+		t.Errorf("nil.MoveToBack(a) = %v, want false", got)
+	}
+
+	if got := len(maps.Collect(m.All())); got != 0 {
+		t.Errorf("nil.All() count = %d, want 0", got)
+	}
+
+	if got := len(maps.Collect(m.Backward())); got != 0 {
+		t.Errorf("nil.Backward() count = %d, want 0", got)
+	}
+
+	if got := len(slices.Collect(m.Keys())); got != 0 {
+		t.Errorf("nil.Keys() count = %d, want 0", got)
+	}
+
+	if got := len(slices.Collect(m.Values())); got != 0 {
+		t.Errorf("nil.Values() count = %d, want 0", got)
+	}
+
+	t.Run("mutators panic", func(t *testing.T) {
+		tests := []struct {
+			name string
+			call func(m *Map[string, int])
+		}{
+			{
+				name: "Set",
+				call: func(m *Map[string, int]) { m.Set("a", 1) },
+			},
+			{
+				name: "Grow",
+				call: func(m *Map[string, int]) { m.Grow(1) },
+			},
+			{
+				name: "Clear",
+				call: func(m *Map[string, int]) { m.Clear() },
+			},
+			{
+				name: "Reset",
+				call: func(m *Map[string, int]) { m.Reset() },
+			},
+			{
+				name: "Shrink",
+				call: func(m *Map[string, int]) { m.Shrink() },
+			},
+			{
+				name: "Clip",
+				call: func(m *Map[string, int]) { m.Clip() },
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				sharedtest.Panics(t, tt.name, tt.name+" on nil receiver", func() { tt.call(m) })
+			})
+		}
+	})
 }
 
-func TestZeroValue(t *testing.T) {
+func TestMap_ZeroValue(t *testing.T) {
 	var m Map[string, int]
 
-	if !m.IsEmpty() || m.Contains("a") {
-		t.Fatal("zero value must read as empty")
+	if got := m.IsEmpty(); !got {
+		t.Errorf("IsEmpty() on zero value = %v, want true", got)
 	}
+
+	if got := m.Contains("a"); got {
+		t.Errorf("Contains(a) on zero value = %v, want false", got)
+	}
+
 	if _, _, ok := m.First(); ok {
-		t.Fatal("First on zero value")
+		t.Errorf("First() on zero value: ok = %v, want false", ok)
 	}
+
 	if _, _, ok := m.PopFirst(); ok {
-		t.Fatal("PopFirst on zero value")
+		t.Errorf("PopFirst() on zero value: ok = %v, want false", ok)
 	}
+
 	if _, ok := m.Remove("a"); ok {
-		t.Fatal("Remove on zero value")
+		t.Errorf("Remove(a) on zero value: ok = %v, want false", ok)
 	}
+
 	m.Reset()
 	m.Clip()
 	m.Shrink()
 	m.Grow(4)
 
 	var z Map[string, int]
-	if !z.Set("a", 1) { // Set allocates the index
-		t.Fatal("Set on zero value")
+
+	if got := z.Set("a", 1); !got { // Set allocates the index
+		t.Errorf("Set(a, 1) on zero value = %v, want true", got)
 	}
-	if v, ok := z.Get("a"); !ok || v != 1 {
-		t.Fatal("Get after Set on zero value")
+
+	if got, ok := z.Get("a"); !ok || got != 1 {
+		t.Errorf("Get(a) after Set(a, 1) on zero value = (%d, %v), want (1, true)", got, ok)
 	}
+
 	checkInvariants(t, &z)
 }

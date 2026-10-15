@@ -128,8 +128,10 @@ func Example_lruCache() {
 			fmt.Println("hit", k, v)
 			return
 		}
+
 		fmt.Println("miss", k)
 	}
+
 	put := func(k string, v int) {
 		cache.Set(k, v)
 		cache.MoveToBack(k)

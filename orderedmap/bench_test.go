@@ -18,6 +18,7 @@ func filled(n int) *Map[int, int] {
 	for i := range n {
 		m.Set(i, i)
 	}
+
 	return m
 }
 
@@ -26,6 +27,7 @@ func filledBuiltin(n int) map[int]int {
 	for i := range n {
 		m[i] = i
 	}
+
 	return m
 }
 
@@ -34,7 +36,9 @@ func filledBuiltin(n int) map[int]int {
 func BenchmarkSet(b *testing.B) {
 	b.Run("orderedmap", func(b *testing.B) {
 		m := NewWithCap[int, int](benchSize)
+
 		b.ReportAllocs()
+
 		k := 0
 		for b.Loop() {
 			if m.Len() == benchSize {
@@ -42,6 +46,7 @@ func BenchmarkSet(b *testing.B) {
 				m.Reset()
 				b.StartTimer()
 			}
+
 			boolSink = m.Set(k, k)
 			k++
 		}
@@ -49,7 +54,9 @@ func BenchmarkSet(b *testing.B) {
 
 	b.Run("builtin-map", func(b *testing.B) {
 		m := make(map[int]int, benchSize)
+
 		b.ReportAllocs()
+
 		k := 0
 		for b.Loop() {
 			if len(m) == benchSize {
@@ -57,6 +64,7 @@ func BenchmarkSet(b *testing.B) {
 				clear(m)
 				b.StartTimer()
 			}
+
 			m[k] = k
 			k++
 		}
@@ -66,6 +74,7 @@ func BenchmarkSet(b *testing.B) {
 // BenchmarkSetExisting measures replacing the value of a key already present.
 func BenchmarkSetExisting(b *testing.B) {
 	m := filled(benchSize)
+
 	b.ReportAllocs()
 
 	i := 0
@@ -79,7 +88,9 @@ func BenchmarkSetExisting(b *testing.B) {
 func BenchmarkGet(b *testing.B) {
 	b.Run("orderedmap", func(b *testing.B) {
 		m := filled(benchSize)
+
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			v, _ := m.Get(i % benchSize)
@@ -90,7 +101,9 @@ func BenchmarkGet(b *testing.B) {
 
 	b.Run("builtin-map", func(b *testing.B) {
 		m := filledBuiltin(benchSize)
+
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			intSink = m[i%benchSize]
@@ -104,7 +117,9 @@ func BenchmarkGet(b *testing.B) {
 func BenchmarkRemoveSet(b *testing.B) {
 	b.Run("orderedmap", func(b *testing.B) {
 		m := filled(benchSize)
+
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			k := i % benchSize
@@ -116,7 +131,9 @@ func BenchmarkRemoveSet(b *testing.B) {
 
 	b.Run("builtin-map", func(b *testing.B) {
 		m := filledBuiltin(benchSize)
+
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			k := i % benchSize
@@ -132,6 +149,7 @@ func BenchmarkRemoveSet(b *testing.B) {
 // LRU cache.
 func BenchmarkMoveToBack(b *testing.B) {
 	m := filled(benchSize)
+
 	b.ReportAllocs()
 
 	i := 0
@@ -145,6 +163,7 @@ func BenchmarkMoveToBack(b *testing.B) {
 // every inserted one: the eviction path of a FIFO cache.
 func BenchmarkQueue(b *testing.B) {
 	m := filled(benchSize)
+
 	b.ReportAllocs()
 
 	k := benchSize
@@ -153,6 +172,7 @@ func BenchmarkQueue(b *testing.B) {
 		m.Set(k, k)
 		k++
 	}
+
 	intSink = m.Len()
 }
 
@@ -161,24 +181,30 @@ func BenchmarkQueue(b *testing.B) {
 func BenchmarkAll(b *testing.B) {
 	b.Run("orderedmap", func(b *testing.B) {
 		m := filled(benchSize)
+
 		b.ReportAllocs()
+
 		for b.Loop() {
 			sum := 0
 			for _, v := range m.All() {
 				sum += v
 			}
+
 			intSink = sum
 		}
 	})
 
 	b.Run("builtin-map", func(b *testing.B) {
 		m := filledBuiltin(benchSize)
+
 		b.ReportAllocs()
+
 		for b.Loop() {
 			sum := 0
 			for _, v := range m {
 				sum += v
 			}
+
 			intSink = sum
 		}
 	})
@@ -201,11 +227,13 @@ func BenchmarkRemoveFunc(b *testing.B) {
 // BenchmarkClone measures copying a map with no holes.
 func BenchmarkClone(b *testing.B) {
 	m := filled(benchSize)
+
 	b.ReportAllocs()
 
 	var c *Map[int, int]
 	for b.Loop() {
 		c = m.Clone()
 	}
+
 	intSink = c.Len()
 }

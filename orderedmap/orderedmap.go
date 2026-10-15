@@ -83,6 +83,7 @@ func New[K comparable, V any]() *Map[K, V] {
 // both the entry slice and the index. A negative n is treated as 0.
 func NewWithCap[K comparable, V any](n int) *Map[K, V] {
 	n = max(n, 0)
+
 	return &Map[K, V]{
 		entries: make([]entry[K, V], 0, n),
 		index:   make(map[K]int, n),
@@ -95,6 +96,7 @@ func (m *Map[K, V]) Len() int {
 	if m == nil {
 		return 0
 	}
+
 	return len(m.index)
 }
 
@@ -106,6 +108,7 @@ func (m *Map[K, V]) Cap() int {
 	if m == nil {
 		return 0
 	}
+
 	return cap(m.entries)
 }
 
@@ -134,7 +137,9 @@ func (m *Map[K, V]) Contains(k K) bool {
 	if m == nil {
 		return false
 	}
+
 	_, ok := m.index[k]
+
 	return ok
 }
 
@@ -151,6 +156,7 @@ func (m *Map[K, V]) First() (K, V, bool) {
 	}
 
 	e := m.entries[m.head]
+
 	return e.key, e.value, true
 }
 
@@ -167,6 +173,7 @@ func (m *Map[K, V]) Last() (K, V, bool) {
 	}
 
 	e := m.entries[len(m.entries)-1]
+
 	return e.key, e.value, true
 }
 
@@ -188,8 +195,10 @@ func (m *Map[K, V]) Set(k K, v V) bool {
 	if m.index == nil {
 		m.index = make(map[K]int)
 	}
+
 	m.index[k] = len(m.entries)
 	m.entries = append(m.entries, entry[K, V]{key: k, value: v, alive: true})
+
 	return true
 }
 
@@ -207,6 +216,7 @@ func (m *Map[K, V]) Remove(k K) (V, bool) {
 		var zero V
 		return zero, false
 	}
+
 	return m.removeAt(i).value, true
 }
 
@@ -221,6 +231,7 @@ func (m *Map[K, V]) RemoveFunc(del func(K, V) bool) int {
 	if del == nil {
 		panic("orderedmap: nil predicate")
 	}
+
 	if m == nil || len(m.index) == 0 {
 		return 0
 	}
@@ -231,10 +242,12 @@ func (m *Map[K, V]) RemoveFunc(del func(K, V) bool) int {
 		if !e.alive {
 			continue
 		}
+
 		if del(e.key, e.value) {
 			delete(m.index, e.key)
 			continue
 		}
+
 		m.entries[w] = e
 		m.index[e.key] = w
 		w++
@@ -243,6 +256,7 @@ func (m *Map[K, V]) RemoveFunc(del func(K, V) bool) int {
 	clear(m.entries[w:])
 	m.entries = m.entries[:w]
 	m.head, m.holes = 0, 0
+
 	return before - len(m.index)
 }
 
@@ -259,6 +273,7 @@ func (m *Map[K, V]) PopFirst() (K, V, bool) {
 	}
 
 	e := m.removeAt(m.head)
+
 	return e.key, e.value, true
 }
 
@@ -275,6 +290,7 @@ func (m *Map[K, V]) PopLast() (K, V, bool) {
 	}
 
 	e := m.removeAt(len(m.entries) - 1)
+
 	return e.key, e.value, true
 }
 
@@ -290,6 +306,7 @@ func (m *Map[K, V]) MoveToBack(k K) bool {
 	if !ok {
 		return false
 	}
+
 	if i == len(m.entries)-1 {
 		return true
 	}
@@ -297,6 +314,7 @@ func (m *Map[K, V]) MoveToBack(k K) bool {
 	e := m.removeAt(i)
 	m.index[k] = len(m.entries)
 	m.entries = append(m.entries, e)
+
 	return true
 }
 
@@ -313,6 +331,7 @@ func (m *Map[K, V]) Clone() *Map[K, V] {
 	}
 
 	entries := packArray(m.entries, m.holes)
+
 	return &Map[K, V]{
 		entries: entries,
 		index:   rebuildIndex(entries),
@@ -328,6 +347,7 @@ func (m *Map[K, V]) All() iter.Seq2[K, V] {
 		if m == nil {
 			return
 		}
+
 		for _, e := range m.entries {
 			if e.alive && !yield(e.key, e.value) {
 				return
@@ -345,6 +365,7 @@ func (m *Map[K, V]) Backward() iter.Seq2[K, V] {
 		if m == nil {
 			return
 		}
+
 		for _, e := range slices.Backward(m.entries) {
 			if e.alive && !yield(e.key, e.value) {
 				return
@@ -415,9 +436,11 @@ func (m *Map[K, V]) Reset() {
 // Grow panics on a nil receiver.
 func (m *Map[K, V]) Grow(n int) {
 	shared.MustNotNil(m, "orderedmap", "Grow")
+
 	if n <= 0 {
 		return
 	}
+
 	m.entries = slices.Grow(m.entries, n)
 }
 
@@ -441,10 +464,12 @@ func (m *Map[K, V]) Clip() {
 // Shrink panics on a nil receiver.
 func (m *Map[K, V]) Shrink() {
 	shared.MustNotNil(m, "orderedmap", "Shrink")
+
 	if m.holes > 0 || cap(m.entries) != len(m.entries) {
 		m.entries = packArray(m.entries, m.holes)
 		m.head, m.holes = 0, 0
 	}
+
 	m.index = rebuildIndex(m.entries)
 }
 
@@ -461,7 +486,9 @@ func (m *Map[K, V]) removeAt(i int) entry[K, V] {
 	if len(m.entries) > 0 && i == m.head {
 		m.advanceHead()
 	}
+
 	m.maybeCompact()
+
 	return e
 }
 
@@ -524,6 +551,7 @@ func packArray[K comparable, V any](entries []entry[K, V], holes int) []entry[K,
 			packed = append(packed, e)
 		}
 	}
+
 	return packed
 }
 
@@ -535,5 +563,6 @@ func rebuildIndex[K comparable, V any](entries []entry[K, V]) map[K]int {
 			index[e.key] = i
 		}
 	}
+
 	return index
 }
