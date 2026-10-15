@@ -64,6 +64,7 @@ func ExampleSet_All() {
 	for v := range s.All() {
 		out = append(out, v)
 	}
+
 	slices.Sort(out)
 	fmt.Println(out)
 	// Output: [1 2 3]

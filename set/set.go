@@ -24,6 +24,7 @@ package set
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/Nergous/structures/internal/shared"
 )
@@ -49,6 +50,7 @@ func NewWithCap[T comparable](n int) *Set[T] {
 	if n < 0 {
 		n = 0
 	}
+
 	return &Set[T]{
 		m: make(map[T]struct{}, n),
 	}
@@ -75,6 +77,7 @@ func (s *Set[T]) Len() int {
 	if s == nil {
 		return 0
 	}
+
 	return len(s.m)
 }
 
@@ -91,6 +94,7 @@ func (s *Set[T]) Contains(v T) bool {
 	}
 
 	_, ok := s.m[v]
+
 	return ok
 }
 
@@ -117,17 +121,7 @@ func (s *Set[T]) ContainsAll(vs ...T) bool {
 // ContainsAny reports whether at least one value in vs is present in the set.
 // With no arguments it reports false. A nil receiver is treated as an empty set.
 func (s *Set[T]) ContainsAny(vs ...T) bool {
-	if len(vs) == 0 {
-		return false
-	}
-
-	for _, v := range vs {
-		if s.Contains(v) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(vs, s.Contains)
 }
 
 // All returns an iterator over the set's values. The order is unspecified and
@@ -163,6 +157,7 @@ func (s *Set[T]) Slice() []T {
 	for v := range s.m {
 		sl = append(sl, v)
 	}
+
 	return sl
 }
 
@@ -181,6 +176,7 @@ func (s *Set[T]) Clone() *Set[T] {
 	for v := range s.m {
 		new.m[v] = struct{}{}
 	}
+
 	return new
 }
 
@@ -191,15 +187,17 @@ func (s *Set[T]) Clone() *Set[T] {
 // usable: Add allocates its backing map on first insertion.
 func (s *Set[T]) Add(v T) bool {
 	shared.MustNotNil(s, "set", "Add")
+
 	if s.m == nil {
 		s.m = make(map[T]struct{})
 	}
 
-	_, ok := s.m[v]
-	if ok {
+	if _, ok := s.m[v]; ok {
 		return false
 	}
+
 	s.m[v] = struct{}{}
+
 	return true
 }
 
@@ -214,6 +212,7 @@ func (s *Set[T]) AddN(vs ...T) {
 	if len(vs) == 0 {
 		return
 	}
+
 	if s.m == nil {
 		s.m = make(map[T]struct{}, len(vs))
 	}
@@ -232,6 +231,7 @@ func (s *Set[T]) Remove(v T) bool {
 
 	_, ok := s.m[v]
 	delete(s.m, v)
+
 	return ok
 }
 
@@ -245,6 +245,7 @@ func (s *Set[T]) AddSet(other *Set[T]) {
 	if other == nil {
 		return
 	}
+
 	if s.m == nil {
 		s.m = make(map[T]struct{}, len(other.m))
 	}
@@ -293,7 +294,6 @@ func (s *Set[T]) RetainAll(other *Set[T]) {
 // Clear requires a non-nil receiver and panics on a nil one.
 func (s *Set[T]) Clear() {
 	shared.MustNotNil(s, "set", "Clear")
-
 	s.m = nil
 }
 
@@ -303,7 +303,6 @@ func (s *Set[T]) Clear() {
 // Reset requires a non-nil receiver and panics on a nil one.
 func (s *Set[T]) Reset() {
 	shared.MustNotNil(s, "set", "Reset")
-
 	clear(s.m)
 }
 
@@ -315,6 +314,7 @@ func (s *Set[T]) Union(others ...*Set[T]) *Set[T] {
 		if other == nil {
 			continue
 		}
+
 		for v := range other.m {
 			res.m[v] = struct{}{}
 		}
@@ -378,14 +378,17 @@ func (s *Set[T]) Equal(other *Set[T]) bool {
 	if s.Len() != other.Len() {
 		return false
 	}
+
 	if s == nil {
 		return true
 	}
+
 	for k := range s.m {
 		if !other.Contains(k) {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -395,14 +398,17 @@ func (s *Set[T]) IsSubset(other *Set[T]) bool {
 	if s.Len() > other.Len() {
 		return false
 	}
+
 	if s == nil {
 		return true
 	}
+
 	for k := range s.m {
 		if !other.Contains(k) {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -424,5 +430,6 @@ func (s *Set[T]) IsDisjoint(other *Set[T]) bool {
 			return false
 		}
 	}
+
 	return true
 }

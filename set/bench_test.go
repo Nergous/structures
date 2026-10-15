@@ -25,6 +25,7 @@ func BenchmarkAdd(b *testing.B) {
 		s.Add(i)
 		i++
 	}
+
 	intSink = s.Len()
 }
 
@@ -93,9 +94,11 @@ func BenchmarkRemove(b *testing.B) {
 			for j := range chunk {
 				s.Add(next + j)
 			}
+
 			next += chunk
 			b.StartTimer()
 		}
+
 		boolSink = s.Remove(next - s.Len())
 	}
 }
@@ -112,6 +115,7 @@ func BenchmarkUnion(b *testing.B) {
 			}
 
 			b.ReportAllocs()
+
 			for b.Loop() {
 				setSink = a.Union(c)
 			}
@@ -132,6 +136,7 @@ func BenchmarkIntersection(b *testing.B) {
 			}
 
 			b.ReportAllocs()
+
 			for b.Loop() {
 				setSink = a.Intersection(c)
 			}
@@ -150,11 +155,13 @@ func BenchmarkAll(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sum := 0
 		for v := range s.All() {
 			sum += v
 		}
+
 		intSink = sum
 	}
 }
@@ -170,6 +177,7 @@ func BenchmarkSlice(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sliceSink = s.Slice()
 	}
