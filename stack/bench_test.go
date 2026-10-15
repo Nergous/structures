@@ -23,6 +23,7 @@ func BenchmarkPush(b *testing.B) {
 		s.Push(i)
 		i++
 	}
+
 	// Keep the final size observable so the pushes are not dead code.
 	intSink = s.Len()
 }
@@ -48,6 +49,7 @@ func BenchmarkPushN(b *testing.B) {
 		s.Reset() // retain capacity so the next PushN does not reallocate
 		b.StartTimer()
 	}
+
 	intSink = s.Len()
 }
 
@@ -66,8 +68,10 @@ func BenchmarkPop(b *testing.B) {
 			for j := range chunk {
 				s.Push(j)
 			}
+
 			b.StartTimer()
 		}
+
 		_, boolSink = s.Pop()
 	}
 }
@@ -88,8 +92,10 @@ func BenchmarkPopN(b *testing.B) {
 			for j := range batch {
 				s.Push(j)
 			}
+
 			b.StartTimer()
 		}
+
 		sliceSink = s.PopN(batch)
 	}
 }
@@ -101,7 +107,6 @@ func BenchmarkPeek(b *testing.B) {
 
 	s := New[int]()
 	s.PushN(1, 2, 3)
-
 	for b.Loop() {
 		intSink, boolSink = s.Peek()
 	}
@@ -118,11 +123,13 @@ func BenchmarkAll(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sum := 0
 		for v := range s.All() {
 			sum += v
 		}
+
 		intSink = sum
 	}
 }
@@ -138,6 +145,7 @@ func BenchmarkSlice(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sliceSink = s.Slice()
 	}

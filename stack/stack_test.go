@@ -11,9 +11,11 @@ func assertNewEmpty[T any](t *testing.T) {
 	t.Helper()
 
 	s := New[T]()
+
 	if got := s.Len(); got != 0 {
 		t.Errorf("Len() = %d, want 0", got)
 	}
+
 	if got := cap(s.data); got != 0 {
 		t.Errorf("cap(data) = %d, want 0", got)
 	}
@@ -30,17 +32,28 @@ func TestStack_NewWithCap(t *testing.T) {
 		name string
 		cap  int
 	}{
-		{name: "zero cap", cap: 0},
-		{name: "one", cap: 1},
-		{name: "ten", cap: 10},
+		{
+			name: "zero cap",
+			cap:  0,
+		},
+		{
+			name: "one",
+			cap:  1,
+		},
+		{
+			name: "ten",
+			cap:  10,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewWithCap[int](tt.cap)
+
 			if got := s.Len(); got != 0 {
 				t.Errorf("Len() = %d, want 0", got)
 			}
+
 			if got := cap(s.data); got != tt.cap {
 				t.Errorf("cap(data) = %d, want %d", got, tt.cap)
 			}
@@ -54,9 +67,21 @@ func TestStack_PushPop(t *testing.T) {
 		push []int
 		want []int
 	}{
-		{name: "empty", push: nil, want: nil},
-		{name: "single element", push: []int{42}, want: []int{42}},
-		{name: "lifo order", push: []int{1, 2, 3}, want: []int{3, 2, 1}},
+		{
+			name: "empty",
+			push: nil,
+			want: nil,
+		},
+		{
+			name: "single element",
+			push: []int{42},
+			want: []int{42},
+		},
+		{
+			name: "lifo order",
+			push: []int{1, 2, 3},
+			want: []int{3, 2, 1},
+		},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +96,7 @@ func TestStack_PushPop(t *testing.T) {
 				if !ok {
 					t.Fatalf("Pop() #%d: ok = false, want true", i)
 				}
+
 				if got != want {
 					t.Errorf("Pop() #%d = %d, want %d", i, got, want)
 				}
@@ -90,6 +116,7 @@ func TestStack_Peek(t *testing.T) {
 		if ok {
 			t.Errorf("Peek() ok = true, want false")
 		}
+
 		if got != 0 {
 			t.Errorf("Peek() = %d, want 0 (zero value)", got)
 		}
@@ -104,9 +131,11 @@ func TestStack_Peek(t *testing.T) {
 		if !ok {
 			t.Fatalf("Peek() ok = false, want true")
 		}
+
 		if got != 2 {
 			t.Errorf("Peek() = %d, want 2", got)
 		}
+
 		if got := s.Len(); got != 2 {
 			t.Errorf("Len() after Peek() = %d, want 2 (Peek must not modify the stack)", got)
 		}
@@ -119,8 +148,16 @@ func TestStack_IsEmpty(t *testing.T) {
 		pushN int
 		want  bool
 	}{
-		{name: "new stack is empty", pushN: 0, want: true},
-		{name: "after push is not empty", pushN: 1, want: false},
+		{
+			name:  "new stack is empty",
+			pushN: 0,
+			want:  true,
+		},
+		{
+			name:  "after push is not empty",
+			pushN: 1,
+			want:  false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -129,6 +166,7 @@ func TestStack_IsEmpty(t *testing.T) {
 			for i := 0; i < tt.pushN; i++ {
 				s.Push(i)
 			}
+
 			if got := s.IsEmpty(); got != tt.want {
 				t.Errorf("IsEmpty() = %v, want %v", got, tt.want)
 			}
@@ -139,6 +177,7 @@ func TestStack_IsEmpty(t *testing.T) {
 func TestStack_Cap(t *testing.T) {
 	t.Run("new stack has zero cap", func(t *testing.T) {
 		s := New[int]()
+
 		if got := s.Cap(); got != 0 {
 			t.Errorf("Cap() = %d, want 0", got)
 		}
@@ -146,9 +185,11 @@ func TestStack_Cap(t *testing.T) {
 
 	t.Run("reflects preallocated capacity", func(t *testing.T) {
 		s := NewWithCap[int](8)
+
 		if got := s.Cap(); got != 8 {
 			t.Errorf("Cap() = %d, want 8", got)
 		}
+
 		if got := s.Len(); got != 0 {
 			t.Errorf("Len() = %d, want 0", got)
 		}
@@ -159,7 +200,7 @@ func TestStack_Cap(t *testing.T) {
 		for i := range 100 {
 			s.Push(i)
 			if c, l := s.Cap(), s.Len(); c < l {
-				t.Fatalf("after %d pushes: Cap() = %d < Len() = %d", i+1, c, l)
+				t.Fatalf("Cap() #%d = %d, want >= Len() = %d", i, c, l)
 			}
 		}
 	})
@@ -169,6 +210,7 @@ func TestStack_Cap(t *testing.T) {
 		for i := range 4 {
 			s.Push(i)
 		}
+
 		if got := s.Cap(); got != 4 {
 			t.Errorf("Cap() = %d, want 4 (no realloc expected within cap)", got)
 		}
@@ -181,10 +223,11 @@ func TestStack_All(t *testing.T) {
 		for v := range s.All() {
 			out = append(out, v)
 		}
+
 		return out
 	}
 
-	t.Run("yields top to bottom (LIFO)", func(t *testing.T) {
+	t.Run("yields top to bottom (lifo)", func(t *testing.T) {
 		s := New[int]()
 		s.Push(1)
 		s.Push(2)
@@ -197,8 +240,9 @@ func TestStack_All(t *testing.T) {
 
 	t.Run("empty stack yields nothing", func(t *testing.T) {
 		s := New[int]()
+
 		if got := collect(s); len(got) != 0 {
-			t.Errorf("All() over empty = %v, want no elements", got)
+			t.Errorf("All() on empty = %v, want no elements", got)
 		}
 	})
 
@@ -212,8 +256,9 @@ func TestStack_All(t *testing.T) {
 		if got := s.Len(); got != 2 {
 			t.Errorf("Len() after All() = %d, want 2 (iteration must not consume)", got)
 		}
-		if v, ok := s.Pop(); !ok || v != 2 {
-			t.Errorf("Pop() after All() = (%d, %v), want (2, true)", v, ok)
+
+		if got, ok := s.Pop(); !ok || got != 2 {
+			t.Errorf("Pop() after All() = (%d, %v), want (2, true)", got, ok)
 		}
 	})
 
@@ -234,8 +279,9 @@ func TestStack_All(t *testing.T) {
 		if want := []int{3, 2}; !equalInts(got, want) {
 			t.Errorf("All() with early break = %v, want %v", got, want)
 		}
-		if l := s.Len(); l != 3 {
-			t.Errorf("Len() after break = %d, want 3", l)
+
+		if got := s.Len(); got != 3 {
+			t.Errorf("Len() after break = %d, want 3", got)
 		}
 	})
 }
@@ -251,20 +297,24 @@ func TestStack_Clear(t *testing.T) {
 	if got := s.Len(); got != 0 {
 		t.Errorf("Len() after Clear() = %d, want 0", got)
 	}
-	if !s.IsEmpty() {
-		t.Errorf("IsEmpty() after Clear() = false, want true")
+
+	if got := s.IsEmpty(); !got {
+		t.Errorf("IsEmpty() after Clear() = %v, want true", got)
 	}
+
 	if got := s.Cap(); got != 0 {
 		t.Errorf("Cap() after Clear() = %d, want 0 (backing array released)", got)
 	}
-	if v, ok := s.Pop(); ok {
-		t.Errorf("Pop() after Clear() = (%d, true), want ok = false", v)
+
+	if got, ok := s.Pop(); ok {
+		t.Errorf("Pop() after Clear(): got %d, ok = true, want ok = false", got)
 	}
 
 	// stack stays usable after Clear
 	s.Push(99)
-	if v, ok := s.Pop(); !ok || v != 99 {
-		t.Errorf("Pop() after reuse = (%d, %v), want (99, true)", v, ok)
+
+	if got, ok := s.Pop(); !ok || got != 99 {
+		t.Errorf("Pop() after reuse = (%d, %v), want (99, true)", got, ok)
 	}
 }
 
@@ -281,9 +331,11 @@ func TestStack_Reset(t *testing.T) {
 		if got := s.Len(); got != 0 {
 			t.Errorf("Len() after Reset() = %d, want 0", got)
 		}
-		if !s.IsEmpty() {
-			t.Errorf("IsEmpty() after Reset() = false, want true")
+
+		if got := s.IsEmpty(); !got {
+			t.Errorf("IsEmpty() after Reset() = %v, want true", got)
 		}
+
 		if got := s.Cap(); got != capBefore {
 			t.Errorf("Cap() after Reset() = %d, want %d (capacity must be preserved)", got, capBefore)
 		}
@@ -300,9 +352,9 @@ func TestStack_Reset(t *testing.T) {
 
 		// white-box: the array is retained, so inspect every slot up to cap.
 		full := s.data[:cap(s.data)]
-		for i, p := range full {
-			if p != nil {
-				t.Errorf("backing slot %d = %p, want nil (Reset must zero elements)", i, p)
+		for i, got := range full {
+			if got != nil {
+				t.Errorf("data[%d] = %p, want nil (Reset must zero elements)", i, got)
 			}
 		}
 	})
@@ -313,11 +365,12 @@ func TestStack_Reset(t *testing.T) {
 		s.Reset()
 		s.Push(42)
 
-		if v, ok := s.Pop(); !ok || v != 42 {
-			t.Errorf("Pop() after reuse = (%d, %v), want (42, true)", v, ok)
+		if got, ok := s.Pop(); !ok || got != 42 {
+			t.Errorf("Pop() after reuse = (%d, %v), want (42, true)", got, ok)
 		}
-		if v, ok := s.Pop(); ok {
-			t.Errorf("Pop() on emptied stack = (%d, true), want ok = false", v)
+
+		if got, ok := s.Pop(); ok {
+			t.Errorf("Pop() on emptied stack: got %d, ok = true, want ok = false", got)
 		}
 	})
 }
@@ -334,12 +387,14 @@ func TestStack_Shrink(t *testing.T) {
 		if got := s.Cap(); got != 3 {
 			t.Errorf("Cap() after Shrink() = %d, want 3 (trimmed to len)", got)
 		}
+
 		if got := s.Len(); got != 3 {
 			t.Errorf("Len() after Shrink() = %d, want 3", got)
 		}
-		for _, want := range []int{3, 2, 1} {
+
+		for i, want := range []int{3, 2, 1} {
 			if got, ok := s.Pop(); !ok || got != want {
-				t.Errorf("Pop() = (%d, %v), want (%d, true)", got, ok, want)
+				t.Errorf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
 			}
 		}
 	})
@@ -353,9 +408,10 @@ func TestStack_Shrink(t *testing.T) {
 
 		s.Shrink()
 
-		if &s.data[0] == old {
-			t.Errorf("Shrink() reused the backing array, want a new right-sized one")
+		if got := &s.data[0]; got == old {
+			t.Errorf("&data[0] after Shrink() = %p, want new backing array (not %p)", got, old)
 		}
+
 		if got := s.Cap(); got != 3 {
 			t.Errorf("Cap() after Shrink() = %d, want 3", got)
 		}
@@ -369,6 +425,7 @@ func TestStack_Shrink(t *testing.T) {
 		if got := s.Cap(); got != 0 {
 			t.Errorf("Cap() after Shrink() on empty = %d, want 0", got)
 		}
+
 		if got := s.Len(); got != 0 {
 			t.Errorf("Len() after Shrink() on empty = %d, want 0", got)
 		}
@@ -380,11 +437,12 @@ func TestStack_Shrink(t *testing.T) {
 		s.Shrink()
 		s.Push(2)
 
-		if v, ok := s.Pop(); !ok || v != 2 {
-			t.Errorf("Pop() after reuse = (%d, %v), want (2, true)", v, ok)
+		if got, ok := s.Pop(); !ok || got != 2 {
+			t.Errorf("Pop() after reuse = (%d, %v), want (2, true)", got, ok)
 		}
-		if v, ok := s.Pop(); !ok || v != 1 {
-			t.Errorf("Pop() = (%d, %v), want (1, true)", v, ok)
+
+		if got, ok := s.Pop(); !ok || got != 1 {
+			t.Errorf("Pop() = (%d, %v), want (1, true)", got, ok)
 		}
 	})
 }
@@ -401,12 +459,14 @@ func TestStack_Clip(t *testing.T) {
 		if got := s.Cap(); got != 3 {
 			t.Errorf("Cap() after Clip() = %d, want 3 (trimmed to len)", got)
 		}
+
 		if got := s.Len(); got != 3 {
 			t.Errorf("Len() after Clip() = %d, want 3", got)
 		}
-		for _, want := range []int{3, 2, 1} {
+
+		for i, want := range []int{3, 2, 1} {
 			if got, ok := s.Pop(); !ok || got != want {
-				t.Errorf("Pop() = (%d, %v), want (%d, true)", got, ok, want)
+				t.Errorf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
 			}
 		}
 	})
@@ -420,9 +480,10 @@ func TestStack_Clip(t *testing.T) {
 
 		s.Clip()
 
-		if &s.data[0] != old {
-			t.Errorf("Clip() copied to a new array, want the same backing array (no copy)")
+		if got := &s.data[0]; got != old {
+			t.Errorf("&data[0] after Clip() = %p, want %p (same backing array, no copy)", got, old)
 		}
+
 		if got := s.Cap(); got != 3 {
 			t.Errorf("Cap() after Clip() = %d, want 3", got)
 		}
@@ -436,6 +497,7 @@ func TestStack_Clip(t *testing.T) {
 		if got := s.Cap(); got != 0 {
 			t.Errorf("Cap() after Clip() on empty = %d, want 0", got)
 		}
+
 		if got := s.Len(); got != 0 {
 			t.Errorf("Len() after Clip() on empty = %d, want 0", got)
 		}
@@ -447,11 +509,12 @@ func TestStack_Clip(t *testing.T) {
 		s.Clip()
 		s.Push(2)
 
-		if v, ok := s.Pop(); !ok || v != 2 {
-			t.Errorf("Pop() after reuse = (%d, %v), want (2, true)", v, ok)
+		if got, ok := s.Pop(); !ok || got != 2 {
+			t.Errorf("Pop() after reuse = (%d, %v), want (2, true)", got, ok)
 		}
-		if v, ok := s.Pop(); !ok || v != 1 {
-			t.Errorf("Pop() = (%d, %v), want (1, true)", v, ok)
+
+		if got, ok := s.Pop(); !ok || got != 1 {
+			t.Errorf("Pop() = (%d, %v), want (1, true)", got, ok)
 		}
 	})
 }
@@ -461,9 +524,9 @@ func TestStack_PushN(t *testing.T) {
 		s := New[int]()
 		s.PushN(1, 2, 3)
 
-		for _, want := range []int{3, 2, 1} {
+		for i, want := range []int{3, 2, 1} {
 			if got, ok := s.Pop(); !ok || got != want {
-				t.Errorf("Pop() = (%d, %v), want (%d, true)", got, ok, want)
+				t.Errorf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
 			}
 		}
 	})
@@ -471,6 +534,7 @@ func TestStack_PushN(t *testing.T) {
 	t.Run("no arguments is a no-op", func(t *testing.T) {
 		s := New[int]()
 		s.PushN()
+
 		if got := s.Len(); got != 0 {
 			t.Errorf("Len() after PushN() = %d, want 0", got)
 		}
@@ -499,6 +563,7 @@ func TestStack_Clone(t *testing.T) {
 		if got, want := c.Slice(), []int{3, 2, 1}; !equalInts(got, want) {
 			t.Errorf("Clone().Slice() = %v, want %v", got, want)
 		}
+
 		if got := c.Len(); got != 3 {
 			t.Errorf("Clone().Len() = %d, want 3", got)
 		}
@@ -517,6 +582,7 @@ func TestStack_Clone(t *testing.T) {
 		if got := c.Len(); got != 3 {
 			t.Errorf("clone Len() = %d, want 3 (independent of original)", got)
 		}
+
 		if got := s.Len(); got != 1 {
 			t.Errorf("original Len() = %d, want 1 (independent of clone)", got)
 		}
@@ -530,9 +596,11 @@ func TestStack_Clone(t *testing.T) {
 		if got := c.Len(); got != 0 {
 			t.Errorf("Clone().Len() = %d, want 0", got)
 		}
+
 		c.Push(1)
-		if v, ok := c.Pop(); !ok || v != 1 {
-			t.Errorf("Pop() after push on cloned empty = (%d, %v), want (1, true)", v, ok)
+
+		if got, ok := c.Pop(); !ok || got != 1 {
+			t.Errorf("Pop() after push on cloned empty = (%d, %v), want (1, true)", got, ok)
 		}
 	})
 }
@@ -548,11 +616,13 @@ func TestStack_Grow(t *testing.T) {
 		if got := s.Cap(); got < 102 {
 			t.Errorf("Cap() after Grow(100) = %d, want >= 102", got)
 		}
+
 		if got := s.Len(); got != 2 {
 			t.Errorf("Len() after Grow(100) = %d, want 2", got)
 		}
+
 		if got, want := s.Slice(), []int{2, 1}; !equalInts(got, want) {
-			t.Errorf("Slice() after Grow = %v, want %v", got, want)
+			t.Errorf("Slice() after Grow(100) = %v, want %v", got, want)
 		}
 	})
 
@@ -585,7 +655,7 @@ func TestStack_Grow(t *testing.T) {
 }
 
 func TestStack_Slice(t *testing.T) {
-	t.Run("returns elements top to bottom (LIFO)", func(t *testing.T) {
+	t.Run("returns elements top to bottom (lifo)", func(t *testing.T) {
 		s := New[int]()
 		s.Push(1)
 		s.Push(2)
@@ -606,9 +676,9 @@ func TestStack_Slice(t *testing.T) {
 			sl[i] = 999
 		}
 
-		for _, want := range []int{2, 1} {
+		for i, want := range []int{2, 1} {
 			if got, ok := s.Pop(); !ok || got != want {
-				t.Errorf("Pop() = (%d, %v) after mutating Slice(), want (%d, true)", got, ok, want)
+				t.Errorf("Pop() #%d after mutating Slice() = (%d, %v), want (%d, true)", i, got, ok, want)
 			}
 		}
 	})
@@ -634,16 +704,34 @@ func TestStack_Slice(t *testing.T) {
 		reset.Push(1)
 		reset.Reset()
 
-		cases := map[string]*Stack[int]{
-			"fresh New":       New[int](),
-			"preallocated":    NewWithCap[int](8),
-			"drained to zero": drained,
-			"after Reset":     reset,
+		tests := []struct {
+			name string
+			s    *Stack[int]
+		}{
+			{
+				name: "fresh New",
+				s:    New[int](),
+			},
+			{
+				name: "preallocated",
+				s:    NewWithCap[int](8),
+			},
+			{
+				name: "drained to zero",
+				s:    drained,
+			},
+			{
+				name: "after Reset",
+				s:    reset,
+			},
 		}
-		for name, s := range cases {
-			if got := s.Slice(); got != nil {
-				t.Errorf("%s: Slice() = %v, want nil", name, got)
-			}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				if got := tt.s.Slice(); got != nil {
+					t.Errorf("Slice() = %v, want nil", got)
+				}
+			})
 		}
 	})
 }
@@ -653,6 +741,7 @@ func TestStack_NilReceiver(t *testing.T) {
 	// method, without panicking.
 	t.Run("Len is 0", func(t *testing.T) {
 		var s *Stack[int]
+
 		if got := s.Len(); got != 0 {
 			t.Errorf("nil.Len() = %d, want 0", got)
 		}
@@ -660,6 +749,7 @@ func TestStack_NilReceiver(t *testing.T) {
 
 	t.Run("Cap is 0", func(t *testing.T) {
 		var s *Stack[int]
+
 		if got := s.Cap(); got != 0 {
 			t.Errorf("nil.Cap() = %d, want 0", got)
 		}
@@ -667,13 +757,15 @@ func TestStack_NilReceiver(t *testing.T) {
 
 	t.Run("IsEmpty is true", func(t *testing.T) {
 		var s *Stack[int]
-		if !s.IsEmpty() {
-			t.Errorf("nil.IsEmpty() = false, want true")
+
+		if got := s.IsEmpty(); !got {
+			t.Errorf("nil.IsEmpty() = %v, want true", got)
 		}
 	})
 
 	t.Run("Peek returns zero, false", func(t *testing.T) {
 		var s *Stack[int]
+
 		if got, ok := s.Peek(); ok || got != 0 {
 			t.Errorf("nil.Peek() = (%d, %v), want (0, false)", got, ok)
 		}
@@ -681,6 +773,7 @@ func TestStack_NilReceiver(t *testing.T) {
 
 	t.Run("Pop returns zero, false", func(t *testing.T) {
 		var s *Stack[int]
+
 		if got, ok := s.Pop(); ok || got != 0 {
 			t.Errorf("nil.Pop() = (%d, %v), want (0, false)", got, ok)
 		}
@@ -688,6 +781,7 @@ func TestStack_NilReceiver(t *testing.T) {
 
 	t.Run("Slice is empty", func(t *testing.T) {
 		var s *Stack[int]
+
 		if got := s.Slice(); len(got) != 0 {
 			t.Errorf("nil.Slice() = %v, want no elements", got)
 		}
@@ -699,8 +793,9 @@ func TestStack_NilReceiver(t *testing.T) {
 		for range s.All() {
 			count++
 		}
+
 		if count != 0 {
-			t.Errorf("nil.All() yielded %d elements, want 0", count)
+			t.Errorf("nil.All() count = %d, want 0", count)
 		}
 	})
 
@@ -711,14 +806,16 @@ func TestStack_NilReceiver(t *testing.T) {
 		if c == nil {
 			t.Fatalf("nil.Clone() = nil, want a usable empty stack")
 		}
+
 		if got := c.Len(); got != 0 {
 			t.Errorf("nil.Clone().Len() = %d, want 0", got)
 		}
 
 		// the clone must be usable for mutation without a further New call.
 		c.Push(42)
-		if v, ok := c.Pop(); !ok || v != 42 {
-			t.Errorf("Pop() after push on cloned nil = (%d, %v), want (42, true)", v, ok)
+
+		if got, ok := c.Pop(); !ok || got != 42 {
+			t.Errorf("Pop() after push on cloned nil = (%d, %v), want (42, true)", got, ok)
 		}
 	})
 }
@@ -730,12 +827,42 @@ func TestStack_PopN(t *testing.T) {
 		want []int
 		left []int
 	}{
-		{name: "one", n: 1, want: []int{5}, left: []int{4, 3, 2, 1}},
-		{name: "several in pop order", n: 3, want: []int{5, 4, 3}, left: []int{2, 1}},
-		{name: "exactly Len", n: 5, want: []int{5, 4, 3, 2, 1}, left: nil},
-		{name: "more than Len drains", n: 99, want: []int{5, 4, 3, 2, 1}, left: nil},
-		{name: "zero", n: 0, want: nil, left: []int{5, 4, 3, 2, 1}},
-		{name: "negative", n: -3, want: nil, left: []int{5, 4, 3, 2, 1}},
+		{
+			name: "one",
+			n:    1,
+			want: []int{5},
+			left: []int{4, 3, 2, 1},
+		},
+		{
+			name: "several in pop order",
+			n:    3,
+			want: []int{5, 4, 3},
+			left: []int{2, 1},
+		},
+		{
+			name: "exactly Len",
+			n:    5,
+			want: []int{5, 4, 3, 2, 1},
+			left: nil,
+		},
+		{
+			name: "more than Len drains",
+			n:    99,
+			want: []int{5, 4, 3, 2, 1},
+			left: nil,
+		},
+		{
+			name: "zero",
+			n:    0,
+			want: nil,
+			left: []int{5, 4, 3, 2, 1},
+		},
+		{
+			name: "negative",
+			n:    -3,
+			want: nil,
+			left: []int{5, 4, 3, 2, 1},
+		},
 	}
 
 	for _, tt := range tests {
@@ -749,22 +876,26 @@ func TestStack_PopN(t *testing.T) {
 			if !equalInts(got, tt.want) {
 				t.Errorf("PopN(%d) = %v, want %v", tt.n, got, tt.want)
 			}
+
 			if got := s.Slice(); !equalInts(got, tt.left) {
-				t.Errorf("remaining = %v, want %v", got, tt.left)
+				t.Errorf("Slice() after PopN(%d) = %v, want %v", tt.n, got, tt.left)
 			}
+
 			if got := s.Cap(); got != capBefore {
-				t.Errorf("Cap() = %d, want %d (PopN must preserve capacity)", got, capBefore)
+				t.Errorf("Cap() after PopN(%d) = %d, want %d (PopN must preserve capacity)", tt.n, got, capBefore)
 			}
 		})
 	}
 
 	t.Run("empty and nil return nil", func(t *testing.T) {
 		if got := New[int]().PopN(3); got != nil {
-			t.Errorf("PopN on empty = %v, want nil", got)
+			t.Errorf("PopN(3) on empty = %v, want nil", got)
 		}
+
 		var s *Stack[int]
+
 		if got := s.PopN(3); got != nil {
-			t.Errorf("PopN on nil = %v, want nil", got)
+			t.Errorf("nil.PopN(3) = %v, want nil", got)
 		}
 	})
 
@@ -777,10 +908,11 @@ func TestStack_PopN(t *testing.T) {
 		s.PopN(2)
 
 		if backing[1] != nil || backing[2] != nil {
-			t.Errorf("popped slots = %p, %p, want nil, nil", backing[1], backing[2])
+			t.Errorf("data[1], data[2] after PopN(2) = %p, %p, want nil, nil", backing[1], backing[2])
 		}
-		if backing[0] != &a {
-			t.Errorf("remaining slot was disturbed")
+
+		if got := backing[0]; got != &a {
+			t.Errorf("data[0] after PopN(2) = %p, want %p (remaining slot must be untouched)", got, &a)
 		}
 	})
 
@@ -789,6 +921,7 @@ func TestStack_PopN(t *testing.T) {
 		s.PushN(1, 2, 3)
 		s.PopN(2)
 		s.Push(9)
+
 		if got, want := s.Slice(), []int{9, 1}; !equalInts(got, want) {
 			t.Errorf("Slice() = %v, want %v", got, want)
 		}
@@ -797,18 +930,30 @@ func TestStack_PopN(t *testing.T) {
 
 func TestStack_ZeroValue(t *testing.T) {
 	var c Stack[int]
-	if c.Len() != 0 || c.Cap() != 0 || !c.IsEmpty() {
-		t.Fatalf("zero Stack: Len=%d Cap=%d IsEmpty=%v, want 0, 0, true", c.Len(), c.Cap(), c.IsEmpty())
+
+	if got := c.Len(); got != 0 {
+		t.Errorf("Len() on zero value = %d, want 0", got)
 	}
-	if _, ok := c.Pop(); ok {
-		t.Errorf("Pop() on zero value ok = true, want false")
+
+	if got := c.Cap(); got != 0 {
+		t.Errorf("Cap() on zero value = %d, want 0", got)
+	}
+
+	if got := c.IsEmpty(); !got {
+		t.Errorf("IsEmpty() on zero value = %v, want true", got)
+	}
+
+	if got, ok := c.Pop(); ok {
+		t.Errorf("Pop() on zero value: got %d, ok = true, want ok = false", got)
 	}
 
 	c.Push(1)
 	c.Push(2)
-	if got, want := c.Len(), 2; got != want {
-		t.Errorf("Len() after pushes = %d, want %d", got, want)
+
+	if got := c.Len(); got != 2 {
+		t.Errorf("Len() after pushes = %d, want 2", got)
 	}
+
 	if got, ok := c.Pop(); !ok || got != 2 {
 		t.Errorf("Pop() = (%d, %v), want (2, true)", got, ok)
 	}
@@ -818,8 +963,9 @@ func TestStack_ZeroValue(t *testing.T) {
 	c.Shrink()
 	c.Clip()
 	c.Grow(4)
-	if c.Cap() < 4 {
-		t.Errorf("Cap() after Grow(4) = %d, want >= 4", c.Cap())
+
+	if got := c.Cap(); got < 4 {
+		t.Errorf("Cap() after Grow(4) = %d, want >= 4", got)
 	}
 }
 
@@ -830,16 +976,46 @@ func TestStack_NilReceiver_MutatorsPanic(t *testing.T) {
 		name string
 		call func(s *Stack[int])
 	}{
-		{name: "Push", call: func(s *Stack[int]) { s.Push(1) }},
-		{name: "PushN", call: func(s *Stack[int]) { s.PushN(1, 2) }},
-		{name: "PushN with no arguments", call: func(s *Stack[int]) { s.PushN() }},
-		{name: "Grow", call: func(s *Stack[int]) { s.Grow(8) }},
-		{name: "Grow zero", call: func(s *Stack[int]) { s.Grow(0) }},
-		{name: "Grow negative", call: func(s *Stack[int]) { s.Grow(-1) }},
-		{name: "Clear", call: func(s *Stack[int]) { s.Clear() }},
-		{name: "Reset", call: func(s *Stack[int]) { s.Reset() }},
-		{name: "Shrink", call: func(s *Stack[int]) { s.Shrink() }},
-		{name: "Clip", call: func(s *Stack[int]) { s.Clip() }},
+		{
+			name: "Push",
+			call: func(s *Stack[int]) { s.Push(1) },
+		},
+		{
+			name: "PushN",
+			call: func(s *Stack[int]) { s.PushN(1, 2) },
+		},
+		{
+			name: "PushN with no arguments",
+			call: func(s *Stack[int]) { s.PushN() },
+		},
+		{
+			name: "Grow",
+			call: func(s *Stack[int]) { s.Grow(8) },
+		},
+		{
+			name: "Grow zero",
+			call: func(s *Stack[int]) { s.Grow(0) },
+		},
+		{
+			name: "Grow negative",
+			call: func(s *Stack[int]) { s.Grow(-1) },
+		},
+		{
+			name: "Clear",
+			call: func(s *Stack[int]) { s.Clear() },
+		},
+		{
+			name: "Reset",
+			call: func(s *Stack[int]) { s.Reset() },
+		},
+		{
+			name: "Shrink",
+			call: func(s *Stack[int]) { s.Shrink() },
+		},
+		{
+			name: "Clip",
+			call: func(s *Stack[int]) { s.Clip() },
+		},
 	}
 
 	for _, tt := range tests {
@@ -854,10 +1030,12 @@ func equalInts(a, b []int) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for i := range a {
 		if a[i] != b[i] {
 			return false
 		}
 	}
+
 	return true
 }

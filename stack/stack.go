@@ -48,7 +48,9 @@ func New[T any]() *Stack[T] {
 // least n elements. Use it when the maximum size is known up front to avoid
 // reallocations while pushing. A negative n is clamped to zero.
 func NewWithCap[T any](n int) *Stack[T] {
-	return &Stack[T]{data: make([]T, 0, max(n, 0))}
+	return &Stack[T]{
+		data: make([]T, 0, max(n, 0)),
+	}
 }
 
 // Len returns the number of elements currently on the stack. A nil receiver
@@ -57,6 +59,7 @@ func (s *Stack[T]) Len() int {
 	if s == nil {
 		return 0
 	}
+
 	return len(s.data)
 }
 
@@ -66,6 +69,7 @@ func (s *Stack[T]) Cap() int {
 	if s == nil {
 		return 0
 	}
+
 	return cap(s.data)
 }
 
@@ -97,6 +101,7 @@ func (s *Stack[T]) All() iter.Seq[T] {
 		if s == nil {
 			return
 		}
+
 		for i := len(s.data) - 1; i >= 0; i-- {
 			if !yield(s.data[i]) {
 				return
@@ -135,6 +140,7 @@ func (s *Stack[T]) Slice() []T {
 
 	out := slices.Clone(s.data)
 	slices.Reverse(out)
+
 	return out
 }
 
@@ -201,8 +207,10 @@ func (s *Stack[T]) PopN(n int) []T {
 	for i := range out {
 		out[i] = s.data[l-1-i]
 	}
+
 	clear(s.data[l-n:])
 	s.data = s.data[:l-n]
+
 	return out
 }
 
@@ -264,6 +272,7 @@ func (s *Stack[T]) Clip() {
 // Grow requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Grow(n int) {
 	shared.MustNotNil(s, "stack", "Grow")
+
 	if n <= 0 {
 		return
 	}

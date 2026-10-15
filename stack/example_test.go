@@ -81,6 +81,7 @@ func ExampleStack_All() {
 	for v := range s.All() {
 		fmt.Println(v)
 	}
+
 	fmt.Println("remaining:", s.Len())
 	// Output:
 	// 3
@@ -240,6 +241,7 @@ func Example_balancedBrackets() {
 				}
 			}
 		}
+
 		return st.IsEmpty()
 	}
 
