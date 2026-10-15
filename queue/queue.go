@@ -48,7 +48,9 @@ func New[T any]() *Queue[T] {
 // least n elements. Use it when the maximum size is known up front to avoid
 // reallocations while pushing. A negative n is clamped to zero.
 func NewWithCap[T any](n int) *Queue[T] {
-	return &Queue[T]{buf: ring.WithCap[T](n)}
+	return &Queue[T]{
+		buf: ring.WithCap[T](n),
+	}
 }
 
 // Len returns the number of elements currently in the queue. A nil receiver
@@ -57,6 +59,7 @@ func (q *Queue[T]) Len() int {
 	if q == nil {
 		return 0
 	}
+
 	return q.buf.Len()
 }
 
@@ -68,6 +71,7 @@ func (q *Queue[T]) Cap() int {
 	if q == nil {
 		return 0
 	}
+
 	return q.buf.Cap()
 }
 
@@ -86,6 +90,7 @@ func (q *Queue[T]) Peek() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return q.buf.Front()
 }
 
@@ -99,12 +104,14 @@ func (q *Queue[T]) All() iter.Seq[T] {
 		if q == nil {
 			return
 		}
+
 		first, second := q.buf.Segments()
 		for _, v := range first {
 			if !yield(v) {
 				return
 			}
 		}
+
 		for _, v := range second {
 			if !yield(v) {
 				return
@@ -125,7 +132,10 @@ func (q *Queue[T]) Clone() *Queue[T] {
 	if q == nil {
 		return New[T]()
 	}
-	return &Queue[T]{buf: q.buf.Clone()}
+
+	return &Queue[T]{
+		buf: q.buf.Clone(),
+	}
 }
 
 // Slice returns a copy of the queue's elements from front to back (FIFO), the
@@ -140,6 +150,7 @@ func (q *Queue[T]) Slice() []T {
 
 	out := make([]T, q.buf.Len())
 	q.buf.CopyTo(out)
+
 	return out
 }
 
@@ -178,6 +189,7 @@ func (q *Queue[T]) Pop() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return q.buf.PopFront()
 }
 
@@ -189,6 +201,7 @@ func (q *Queue[T]) PopN(n int) []T {
 	if q == nil {
 		return nil
 	}
+
 	return q.buf.PopFrontN(n)
 }
 

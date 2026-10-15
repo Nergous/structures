@@ -139,9 +139,11 @@ func Example_breadthFirstTraversal() {
 	for !q.IsEmpty() {
 		n, _ := q.Pop()
 		fmt.Println(n.value)
+
 		if n.left != nil {
 			q.Push(n.left)
 		}
+
 		if n.right != nil {
 			q.Push(n.right)
 		}
