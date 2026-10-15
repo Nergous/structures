@@ -21,6 +21,7 @@ func BenchmarkPushFront(b *testing.B) {
 		d.PushFront(i)
 		i++
 	}
+
 	intSink = d.Len()
 }
 
@@ -35,6 +36,7 @@ func BenchmarkPushBack(b *testing.B) {
 		d.PushBack(i)
 		i++
 	}
+
 	intSink = d.Len()
 }
 
@@ -58,6 +60,7 @@ func BenchmarkPushFrontN(b *testing.B) {
 		d.Reset()
 		b.StartTimer()
 	}
+
 	intSink = d.Len()
 }
 
@@ -81,6 +84,7 @@ func BenchmarkPushBackN(b *testing.B) {
 		d.Reset()
 		b.StartTimer()
 	}
+
 	intSink = d.Len()
 }
 
@@ -99,8 +103,10 @@ func BenchmarkPopFront(b *testing.B) {
 			for j := range chunk {
 				d.PushBack(j)
 			}
+
 			b.StartTimer()
 		}
+
 		_, boolSink = d.PopFront()
 	}
 }
@@ -120,8 +126,10 @@ func BenchmarkPopBack(b *testing.B) {
 			for j := range chunk {
 				d.PushBack(j)
 			}
+
 			b.StartTimer()
 		}
+
 		_, boolSink = d.PopBack()
 	}
 }
@@ -142,8 +150,10 @@ func BenchmarkPopFrontN(b *testing.B) {
 			for j := range batch {
 				d.PushBack(j)
 			}
+
 			b.StartTimer()
 		}
+
 		sliceSink = d.PopFrontN(batch)
 	}
 }
@@ -164,8 +174,10 @@ func BenchmarkPopBackN(b *testing.B) {
 			for j := range batch {
 				d.PushBack(j)
 			}
+
 			b.StartTimer()
 		}
+
 		sliceSink = d.PopBackN(batch)
 	}
 }
@@ -177,7 +189,6 @@ func BenchmarkFront(b *testing.B) {
 
 	d := New[int]()
 	d.PushBackN(1, 2, 3)
-
 	for b.Loop() {
 		intSink, boolSink = d.Front()
 	}
@@ -190,7 +201,6 @@ func BenchmarkBack(b *testing.B) {
 
 	d := New[int]()
 	d.PushBackN(1, 2, 3)
-
 	for b.Loop() {
 		intSink, boolSink = d.Back()
 	}
@@ -217,6 +227,7 @@ func BenchmarkPushPopFrontBackChurn(b *testing.B) {
 		d.PushFront(i)
 		i++
 	}
+
 	intSink = d.Len()
 }
 
@@ -231,11 +242,13 @@ func BenchmarkAll(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sum := 0
 		for v := range d.All() {
 			sum += v
 		}
+
 		intSink = sum
 	}
 }
@@ -251,6 +264,7 @@ func BenchmarkSlice(b *testing.B) {
 	}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sliceSink = d.Slice()
 	}

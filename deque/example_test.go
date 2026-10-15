@@ -135,6 +135,7 @@ func ExampleDeque_All() {
 	for v := range d.All() {
 		fmt.Println(v)
 	}
+
 	fmt.Println("remaining:", d.Len())
 	// Output:
 	// 1

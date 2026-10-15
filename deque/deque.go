@@ -53,7 +53,9 @@ func New[T any]() *Deque[T] {
 // least n elements. Use it when the maximum size is known up front to avoid
 // reallocations while pushing. A negative n is clamped to zero.
 func NewWithCap[T any](n int) *Deque[T] {
-	return &Deque[T]{buf: ring.WithCap[T](n)}
+	return &Deque[T]{
+		buf: ring.WithCap[T](n),
+	}
 }
 
 // Len returns the number of elements currently in the deque. A nil receiver
@@ -62,6 +64,7 @@ func (d *Deque[T]) Len() int {
 	if d == nil {
 		return 0
 	}
+
 	return d.buf.Len()
 }
 
@@ -73,6 +76,7 @@ func (d *Deque[T]) Cap() int {
 	if d == nil {
 		return 0
 	}
+
 	return d.buf.Cap()
 }
 
@@ -90,6 +94,7 @@ func (d *Deque[T]) Front() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return d.buf.Front()
 }
 
@@ -101,6 +106,7 @@ func (d *Deque[T]) Back() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return d.buf.Back()
 }
 
@@ -114,12 +120,14 @@ func (d *Deque[T]) All() iter.Seq[T] {
 		if d == nil {
 			return
 		}
+
 		first, second := d.buf.Segments()
 		for _, v := range first {
 			if !yield(v) {
 				return
 			}
 		}
+
 		for _, v := range second {
 			if !yield(v) {
 				return
@@ -140,7 +148,10 @@ func (d *Deque[T]) Clone() *Deque[T] {
 	if d == nil {
 		return New[T]()
 	}
-	return &Deque[T]{buf: d.buf.Clone()}
+
+	return &Deque[T]{
+		buf: d.buf.Clone(),
+	}
 }
 
 // Slice returns a copy of the deque's elements from front to back, the same
@@ -155,6 +166,7 @@ func (d *Deque[T]) Slice() []T {
 
 	out := make([]T, d.buf.Len())
 	d.buf.CopyTo(out)
+
 	return out
 }
 
@@ -215,6 +227,7 @@ func (d *Deque[T]) PopFront() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return d.buf.PopFront()
 }
 
@@ -229,6 +242,7 @@ func (d *Deque[T]) PopBack() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return d.buf.PopBack()
 }
 
@@ -240,6 +254,7 @@ func (d *Deque[T]) PopFrontN(n int) []T {
 	if d == nil {
 		return nil
 	}
+
 	return d.buf.PopFrontN(n)
 }
 
@@ -252,6 +267,7 @@ func (d *Deque[T]) PopBackN(n int) []T {
 	if d == nil {
 		return nil
 	}
+
 	return d.buf.PopBackN(n)
 }
 

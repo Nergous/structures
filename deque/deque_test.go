@@ -16,20 +16,25 @@ func TestDeque_PushPopBothEnds(t *testing.T) {
 	if got, want := d.Slice(), []int{1, 2, 3}; !equalInts(got, want) {
 		t.Fatalf("Slice() = %v, want %v", got, want)
 	}
+
 	if got, ok := d.Front(); !ok || got != 1 {
-		t.Fatalf("Front() = (%d, %v), want (1, true)", got, ok)
+		t.Errorf("Front() = (%d, %v), want (1, true)", got, ok)
 	}
+
 	if got, ok := d.Back(); !ok || got != 3 {
-		t.Fatalf("Back() = (%d, %v), want (3, true)", got, ok)
+		t.Errorf("Back() = (%d, %v), want (3, true)", got, ok)
 	}
+
 	if got, ok := d.PopFront(); !ok || got != 1 {
-		t.Fatalf("PopFront() = (%d, %v), want (1, true)", got, ok)
+		t.Errorf("PopFront() = (%d, %v), want (1, true)", got, ok)
 	}
+
 	if got, ok := d.PopBack(); !ok || got != 3 {
-		t.Fatalf("PopBack() = (%d, %v), want (3, true)", got, ok)
+		t.Errorf("PopBack() = (%d, %v), want (3, true)", got, ok)
 	}
+
 	if got, want := d.Slice(), []int{2}; !equalInts(got, want) {
-		t.Fatalf("remaining Slice() = %v, want %v", got, want)
+		t.Errorf("Slice() after PopFront(), PopBack() = %v, want %v", got, want)
 	}
 }
 
@@ -39,16 +44,19 @@ func TestDeque_BulkOperations(t *testing.T) {
 	d.PushFrontN(1, 2, 3)
 
 	if got, want := d.Slice(), []int{1, 2, 3, 4, 5}; !equalInts(got, want) {
-		t.Fatalf("Slice() after bulk pushes = %v, want %v", got, want)
+		t.Fatalf("Slice() after PushBackN(4, 5), PushFrontN(1, 2, 3) = %v, want %v", got, want)
 	}
+
 	if got, want := d.PopFrontN(2), []int{1, 2}; !equalInts(got, want) {
-		t.Fatalf("PopFrontN(2) = %v, want %v", got, want)
+		t.Errorf("PopFrontN(2) = %v, want %v", got, want)
 	}
+
 	if got, want := d.PopBackN(2), []int{5, 4}; !equalInts(got, want) {
-		t.Fatalf("PopBackN(2) = %v, want %v", got, want)
+		t.Errorf("PopBackN(2) = %v, want %v", got, want)
 	}
+
 	if got, want := d.Slice(), []int{3}; !equalInts(got, want) {
-		t.Fatalf("remaining Slice() = %v, want %v", got, want)
+		t.Errorf("Slice() after PopFrontN(2), PopBackN(2) = %v, want %v", got, want)
 	}
 }
 
@@ -59,20 +67,25 @@ func TestDeque_PopNDrainsAndHandlesEmpty(t *testing.T) {
 	if got, want := d.PopFrontN(10), []int{1, 2, 3}; !equalInts(got, want) {
 		t.Fatalf("PopFrontN(10) = %v, want %v", got, want)
 	}
+
 	if got := d.Len(); got != 0 {
-		t.Fatalf("Len() after draining = %d, want 0", got)
+		t.Errorf("Len() after PopFrontN(10) = %d, want 0", got)
 	}
+
 	if got := d.Cap(); got != 8 {
-		t.Fatalf("Cap() after draining = %d, want 8", got)
+		t.Errorf("Cap() after PopFrontN(10) = %d, want 8", got)
 	}
+
 	if got := d.PopBackN(1); got != nil {
-		t.Fatalf("PopBackN on empty = %v, want nil", got)
+		t.Errorf("PopBackN(1) on empty = %v, want nil", got)
 	}
+
 	if got := d.PopFrontN(0); got != nil {
-		t.Fatalf("PopFrontN(0) = %v, want nil", got)
+		t.Errorf("PopFrontN(0) = %v, want nil", got)
 	}
+
 	if got := d.PopBackN(-1); got != nil {
-		t.Fatalf("PopBackN(-1) = %v, want nil", got)
+		t.Errorf("PopBackN(-1) = %v, want nil", got)
 	}
 }
 
@@ -84,13 +97,15 @@ func TestDeque_WrapAround(t *testing.T) {
 	d.PushBackN(5, 6)
 
 	if got, want := d.Slice(), []int{3, 4, 5, 6}; !equalInts(got, want) {
-		t.Fatalf("wrapped Slice() = %v, want %v", got, want)
+		t.Fatalf("Slice() across wraparound = %v, want %v", got, want)
 	}
+
 	if got, want := d.PopBackN(3), []int{6, 5, 4}; !equalInts(got, want) {
-		t.Fatalf("wrapped PopBackN(3) = %v, want %v", got, want)
+		t.Errorf("PopBackN(3) across wraparound = %v, want %v", got, want)
 	}
+
 	if got, want := d.Slice(), []int{3}; !equalInts(got, want) {
-		t.Fatalf("remaining wrapped Slice() = %v, want %v", got, want)
+		t.Errorf("Slice() after PopBackN(3) = %v, want %v", got, want)
 	}
 }
 
@@ -98,11 +113,12 @@ func TestDeque_AllCloneAndSlice(t *testing.T) {
 	d := New[int]()
 	d.PushBackN(1, 2, 3)
 
-	var all []int
+	var got []int
 	for v := range d.All() {
-		all = append(all, v)
+		got = append(got, v)
 	}
-	if got, want := all, []int{1, 2, 3}; !equalInts(got, want) {
+
+	if want := []int{1, 2, 3}; !equalInts(got, want) {
 		t.Fatalf("All() = %v, want %v", got, want)
 	}
 
@@ -111,10 +127,11 @@ func TestDeque_AllCloneAndSlice(t *testing.T) {
 	cloned.PushBack(4)
 
 	if got, want := d.Slice(), []int{2, 3}; !equalInts(got, want) {
-		t.Fatalf("original Slice() = %v, want %v", got, want)
+		t.Errorf("original Slice() = %v, want %v (independent of clone)", got, want)
 	}
+
 	if got, want := cloned.Slice(), []int{1, 2, 3, 4}; !equalInts(got, want) {
-		t.Fatalf("clone Slice() = %v, want %v", got, want)
+		t.Errorf("clone Slice() = %v, want %v (independent of original)", got, want)
 	}
 }
 
@@ -125,14 +142,17 @@ func TestDeque_MemoryControls(t *testing.T) {
 		d.Reset()
 
 		if got := d.Len(); got != 0 {
-			t.Fatalf("Len() after Reset() = %d, want 0", got)
+			t.Errorf("Len() after Reset() = %d, want 0", got)
 		}
+
 		if got := d.Cap(); got != 8 {
-			t.Fatalf("Cap() after Reset() = %d, want 8", got)
+			t.Errorf("Cap() after Reset() = %d, want 8", got)
 		}
+
 		d.PushBack(4)
+
 		if got, ok := d.PopFront(); !ok || got != 4 {
-			t.Fatalf("PopFront() after Reset/PushBack = (%d, %v), want (4, true)", got, ok)
+			t.Errorf("PopFront() after Reset(), PushBack(4) = (%d, %v), want (4, true)", got, ok)
 		}
 	})
 
@@ -142,10 +162,11 @@ func TestDeque_MemoryControls(t *testing.T) {
 		d.Clear()
 
 		if got := d.Len(); got != 0 {
-			t.Fatalf("Len() after Clear() = %d, want 0", got)
+			t.Errorf("Len() after Clear() = %d, want 0", got)
 		}
+
 		if got := d.Cap(); got != 0 {
-			t.Fatalf("Cap() after Clear() = %d, want 0", got)
+			t.Errorf("Cap() after Clear() = %d, want 0", got)
 		}
 	})
 
@@ -153,19 +174,25 @@ func TestDeque_MemoryControls(t *testing.T) {
 		d := NewWithCap[int](16)
 		d.PushBackN(1, 2, 3)
 		d.Shrink()
+
 		if got := d.Cap(); got != 3 {
-			t.Fatalf("Cap() after Shrink() = %d, want 3", got)
+			t.Errorf("Cap() after Shrink() = %d, want 3", got)
 		}
+
 		d.Grow(10)
+
 		if got := d.Cap(); got < 13 {
-			t.Fatalf("Cap() after Grow(10) = %d, want >= 13", got)
+			t.Errorf("Cap() after Grow(10) = %d, want >= 13", got)
 		}
+
 		d.Clip()
+
 		if got := d.Cap(); got != 3 {
-			t.Fatalf("Cap() after Clip() = %d, want 3", got)
+			t.Errorf("Cap() after Clip() = %d, want 3", got)
 		}
+
 		if got, want := d.Slice(), []int{1, 2, 3}; !equalInts(got, want) {
-			t.Fatalf("Slice() after memory controls = %v, want %v", got, want)
+			t.Errorf("Slice() after Shrink(), Grow(10), Clip() = %v, want %v", got, want)
 		}
 	})
 }
@@ -174,54 +201,81 @@ func TestDeque_NilReceiver(t *testing.T) {
 	var d *Deque[int]
 
 	if got := d.Len(); got != 0 {
-		t.Fatalf("nil.Len() = %d, want 0", got)
+		t.Errorf("nil.Len() = %d, want 0", got)
 	}
+
 	if got := d.Cap(); got != 0 {
-		t.Fatalf("nil.Cap() = %d, want 0", got)
+		t.Errorf("nil.Cap() = %d, want 0", got)
 	}
-	if !d.IsEmpty() {
-		t.Fatalf("nil.IsEmpty() = false, want true")
+
+	if got := d.IsEmpty(); !got {
+		t.Errorf("nil.IsEmpty() = %v, want true", got)
 	}
+
 	if got, ok := d.Front(); ok || got != 0 {
-		t.Fatalf("nil.Front() = (%d, %v), want (0, false)", got, ok)
+		t.Errorf("nil.Front() = (%d, %v), want (0, false)", got, ok)
 	}
+
 	if got, ok := d.Back(); ok || got != 0 {
-		t.Fatalf("nil.Back() = (%d, %v), want (0, false)", got, ok)
+		t.Errorf("nil.Back() = (%d, %v), want (0, false)", got, ok)
 	}
+
 	if got, ok := d.PopFront(); ok || got != 0 {
-		t.Fatalf("nil.PopFront() = (%d, %v), want (0, false)", got, ok)
+		t.Errorf("nil.PopFront() = (%d, %v), want (0, false)", got, ok)
 	}
+
 	if got, ok := d.PopBack(); ok || got != 0 {
-		t.Fatalf("nil.PopBack() = (%d, %v), want (0, false)", got, ok)
+		t.Errorf("nil.PopBack() = (%d, %v), want (0, false)", got, ok)
 	}
+
 	if got := d.PopFrontN(1); got != nil {
-		t.Fatalf("nil.PopFrontN(1) = %v, want nil", got)
+		t.Errorf("nil.PopFrontN(1) = %v, want nil", got)
 	}
+
 	if got := d.PopBackN(1); got != nil {
-		t.Fatalf("nil.PopBackN(1) = %v, want nil", got)
+		t.Errorf("nil.PopBackN(1) = %v, want nil", got)
 	}
+
 	if got := d.Slice(); got != nil {
-		t.Fatalf("nil.Slice() = %v, want nil", got)
+		t.Errorf("nil.Slice() = %v, want nil", got)
 	}
-	if got := d.Clone(); got == nil || got.Len() != 0 {
-		t.Fatalf("nil.Clone() = %#v, want usable empty deque", got)
+
+	c := d.Clone()
+	if c == nil {
+		t.Fatalf("nil.Clone() = nil, want a usable empty deque")
+	}
+
+	if got := c.Len(); got != 0 {
+		t.Errorf("nil.Clone().Len() = %d, want 0", got)
 	}
 }
 
 func TestDeque_ZeroValue(t *testing.T) {
 	var c Deque[int]
-	if c.Len() != 0 || c.Cap() != 0 || !c.IsEmpty() {
-		t.Fatalf("zero Deque: Len=%d Cap=%d IsEmpty=%v, want 0, 0, true", c.Len(), c.Cap(), c.IsEmpty())
+
+	if got := c.Len(); got != 0 {
+		t.Errorf("Len() on zero value = %d, want 0", got)
 	}
-	if _, ok := c.PopFront(); ok {
-		t.Errorf("PopFront() on zero value ok = true, want false")
+
+	if got := c.Cap(); got != 0 {
+		t.Errorf("Cap() on zero value = %d, want 0", got)
+	}
+
+	if got := c.IsEmpty(); !got {
+		t.Errorf("IsEmpty() on zero value = %v, want true", got)
+	}
+
+	if got, ok := c.PopFront(); ok {
+		t.Errorf("PopFront() on zero value: got %d, ok = true, want ok = false", got)
 	}
 
 	c.PushBack(1)
 	c.PushBack(2)
-	if got, want := c.Len(), 2; got != want {
-		t.Errorf("Len() after pushes = %d, want %d", got, want)
+
+	if got := c.Len(); got != 2 {
+		t.Errorf("Len() after pushes = %d, want 2", got)
 	}
+
 	if got, ok := c.PopFront(); !ok || got != 1 {
 		t.Errorf("PopFront() = (%d, %v), want (1, true)", got, ok)
 	}
@@ -231,8 +285,9 @@ func TestDeque_ZeroValue(t *testing.T) {
 	c.Shrink()
 	c.Clip()
 	c.Grow(4)
-	if c.Cap() < 4 {
-		t.Errorf("Cap() after Grow(4) = %d, want >= 4", c.Cap())
+
+	if got := c.Cap(); got < 4 {
+		t.Errorf("Cap() after Grow(4) = %d, want >= 4", got)
 	}
 }
 
@@ -241,15 +296,42 @@ func TestDeque_NilReceiverMutatorsPanic(t *testing.T) {
 		name string
 		call func(d *Deque[int])
 	}{
-		{name: "PushFront", call: func(d *Deque[int]) { d.PushFront(1) }},
-		{name: "PushBack", call: func(d *Deque[int]) { d.PushBack(1) }},
-		{name: "PushFrontN", call: func(d *Deque[int]) { d.PushFrontN(1, 2) }},
-		{name: "PushBackN", call: func(d *Deque[int]) { d.PushBackN(1, 2) }},
-		{name: "Grow", call: func(d *Deque[int]) { d.Grow(1) }},
-		{name: "Clear", call: func(d *Deque[int]) { d.Clear() }},
-		{name: "Reset", call: func(d *Deque[int]) { d.Reset() }},
-		{name: "Shrink", call: func(d *Deque[int]) { d.Shrink() }},
-		{name: "Clip", call: func(d *Deque[int]) { d.Clip() }},
+		{
+			name: "PushFront",
+			call: func(d *Deque[int]) { d.PushFront(1) },
+		},
+		{
+			name: "PushBack",
+			call: func(d *Deque[int]) { d.PushBack(1) },
+		},
+		{
+			name: "PushFrontN",
+			call: func(d *Deque[int]) { d.PushFrontN(1, 2) },
+		},
+		{
+			name: "PushBackN",
+			call: func(d *Deque[int]) { d.PushBackN(1, 2) },
+		},
+		{
+			name: "Grow",
+			call: func(d *Deque[int]) { d.Grow(1) },
+		},
+		{
+			name: "Clear",
+			call: func(d *Deque[int]) { d.Clear() },
+		},
+		{
+			name: "Reset",
+			call: func(d *Deque[int]) { d.Reset() },
+		},
+		{
+			name: "Shrink",
+			call: func(d *Deque[int]) { d.Shrink() },
+		},
+		{
+			name: "Clip",
+			call: func(d *Deque[int]) { d.Clip() },
+		},
 	}
 
 	for _, tt := range tests {
@@ -264,10 +346,12 @@ func equalInts(a, b []int) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for i := range a {
 		if a[i] != b[i] {
 			return false
 		}
 	}
+
 	return true
 }
