@@ -152,6 +152,8 @@ go doc github.com/Nergous/structures/stack          # package overview
 go doc github.com/Nergous/structures/stack Stack    # a type and its methods
 ```
 
+Release notes live in [`CHANGELOG.md`](./CHANGELOG.md).
+
 ## License
 
 [MIT](./LICENSE) © Nergous

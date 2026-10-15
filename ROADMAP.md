@@ -18,9 +18,12 @@ stay dependency-free, idiomatic, and easy to audit.
   removal by key.
 - `orderedmap`: generic insertion-ordered hash map with O(1) access to both
   ends and `MoveToBack`.
+- `orderedset`: generic insertion-ordered set with set algebra in a defined
+  order.
 
-Before the first tagged release, these packages should be treated as the API
-baseline for naming, nil behavior, docs, examples, tests, and benchmarks.
+These packages are the API baseline for naming, nil behavior, docs, examples,
+tests, and benchmarks. Releases and their changes are listed in
+[`CHANGELOG.md`](./CHANGELOG.md).
 
 ## Shared conventions
 
@@ -50,21 +53,17 @@ New packages should follow the same house style:
 - Review in-place set algebra naming before release. The internal plan prefers
   the `*With` family (`UnionWith`, `IntersectWith`, `DifferenceWith`,
   `SymmetricDifferenceWith`) for consistency with future set-like packages.
-- Decide the first tagged release policy once the initial package set feels
-  stable.
+- Release with semantic versioning; while the major version is 0, breaking
+  changes bump the minor version and are listed in the changelog.
 
 ## Priority P0
 
-These packages form the core container baseline after `stack`, `queue`, and
-`set`. Without them, the library still feels incomplete as a general-purpose
-containers collection:
+These packages complete the core container baseline. Without them, the library
+still feels incomplete as a general-purpose containers collection:
 
 | Package      | Type                  | Summary |
 | ------------ | --------------------- | ------- |
-| `binheap`    | `Heap[T]`             | Generic binary heap, min-first by default; type-safe `container/heap` replacement. |
 | `bitset`     | `Bitset`              | Dense auto-growing bit vector with word-parallel set algebra. |
-| `deque`      | `Deque[T]`            | Growable ring-buffer double-ended queue; O(1) push/pop at both ends. |
-| `orderedset` | `Set[T]`              | Insertion-order preserving set. |
 | `sortedmap`  | `SortedMap[K, V]`     | Key-ordered map with navigation, rank/select, and ranges. |
 | `sortedset`  | `SortedSet[T]`        | Ordered set with algebra and navigation. |
 
