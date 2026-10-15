@@ -52,6 +52,7 @@ import "github.com/Nergous/structures/stack"
 | [`binheap`](./binheap) | Generic binary heap: min, max, or custom order; type-safe `container/heap` replacement. | [README](./binheap/README.md) |
 | [`pqueue`](./pqueue) | Generic keyed priority queue: change or remove any key's priority in O(log n); stable for equal priorities. | [README](./pqueue/README.md) |
 | [`orderedmap`](./orderedmap) | Generic hash map that iterates in insertion order, with O(1) access to both ends and `MoveToBack`. | [README](./orderedmap/README.md) |
+| [`orderedset`](./orderedset) | Generic set that iterates in insertion order, with set algebra in a defined order and O(1) access to both ends. | [README](./orderedset/README.md) |
 
 More containers are on the way.
 
@@ -128,9 +129,10 @@ Structures packages are designed around a few consistent rules:
 - Non-nil containers, including zero-value structs where a package documents
   them as usable, remain valid after empty reads, failed removals, `Clear`, or
   `Reset`.
-- The zero value of `Stack`, `Queue`, `Deque`, `Set`, and `Map` is an empty,
-  usable container. `Heap` and `PriorityQueue` need a constructor because they
-  hold a comparator; their zero value reads as empty and panics on `Push`.
+- The zero value of `Stack`, `Queue`, `Deque`, `set.Set`, `orderedmap.Map`, and
+  `orderedset.Set` is an empty, usable container. `Heap` and `PriorityQueue`
+  need a constructor because they hold a comparator; their zero value reads as
+  empty and panics on `Push`.
 - Nil-receiver panics share one message format: `pkg: Method on nil receiver`.
 - `Clone` returns an independent shallow copy.
 - `Slice` returns a detached slice in the same order as iteration.
