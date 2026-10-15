@@ -25,18 +25,27 @@ func WithCap[T any](n int) Buffer[T] {
 	if n <= 0 {
 		return Buffer[T]{}
 	}
-	return Buffer[T]{data: make([]T, n)}
+
+	return Buffer[T]{
+		data: make([]T, n),
+	}
 }
 
 // Len returns the number of live elements.
-func (b *Buffer[T]) Len() int { return b.len }
+func (b *Buffer[T]) Len() int {
+	return b.len
+}
 
 // Cap returns the number of elements the buffer can hold before it grows.
-func (b *Buffer[T]) Cap() int { return len(b.data) }
+func (b *Buffer[T]) Cap() int {
+	return len(b.data)
+}
 
 // Data returns the backing array. It is exposed for white-box tests of memory
 // behavior and must not be used to read or modify live elements.
-func (b *Buffer[T]) Data() []T { return b.data }
+func (b *Buffer[T]) Data() []T {
+	return b.data
+}
 
 // Front returns the first element, or (zero, false) when the buffer is empty.
 func (b *Buffer[T]) Front() (T, bool) {
@@ -44,6 +53,7 @@ func (b *Buffer[T]) Front() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return b.data[b.head], true
 }
 
@@ -53,6 +63,7 @@ func (b *Buffer[T]) Back() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return b.data[b.index(b.len-1)], true
 }
 
@@ -63,10 +74,12 @@ func (b *Buffer[T]) Segments() (first, second []T) {
 	if b.len == 0 {
 		return nil, nil
 	}
+
 	end := b.head + b.len
 	if end <= len(b.data) {
 		return b.data[b.head:end], nil
 	}
+
 	return b.data[b.head:], b.data[:end-len(b.data)]
 }
 
@@ -75,13 +88,19 @@ func (b *Buffer[T]) Segments() (first, second []T) {
 func (b *Buffer[T]) CopyTo(dst []T) int {
 	first, second := b.Segments()
 	n := copy(dst, first)
+
 	return n + copy(dst[n:], second)
 }
 
 // Clone returns an independent copy whose capacity equals its length.
 func (b *Buffer[T]) Clone() Buffer[T] {
-	c := Buffer[T]{data: make([]T, b.len), len: b.len}
+	c := Buffer[T]{
+		data: make([]T, b.len),
+		len:  b.len,
+	}
+
 	b.CopyTo(c.data)
+
 	return c
 }
 
@@ -90,6 +109,7 @@ func (b *Buffer[T]) PushBack(v T) {
 	if b.len == len(b.data) {
 		b.growFor(b.len + 1)
 	}
+
 	b.data[b.index(b.len)] = v
 	b.len++
 }
@@ -99,10 +119,12 @@ func (b *Buffer[T]) PushFront(v T) {
 	if b.len == len(b.data) {
 		b.growFor(b.len + 1)
 	}
+
 	b.head--
 	if b.head < 0 {
 		b.head = len(b.data) - 1
 	}
+
 	b.data[b.head] = v
 	b.len++
 }
@@ -112,10 +134,12 @@ func (b *Buffer[T]) PushBackN(vs []T) {
 	if len(vs) == 0 {
 		return
 	}
+
 	b.growFor(b.len + len(vs))
 	for i, v := range vs {
 		b.data[b.index(b.len+i)] = v
 	}
+
 	b.len += len(vs)
 }
 
@@ -125,14 +149,18 @@ func (b *Buffer[T]) PushFrontN(vs []T) {
 	if len(vs) == 0 {
 		return
 	}
+
 	b.growFor(b.len + len(vs))
+
 	b.head -= len(vs)
 	if b.head < 0 {
 		b.head += len(b.data)
 	}
+
 	for i, v := range vs {
 		b.data[b.index(i)] = v
 	}
+
 	b.len += len(vs)
 }
 
@@ -143,16 +171,20 @@ func (b *Buffer[T]) PopFront() (T, bool) {
 	if b.len == 0 {
 		return zero, false
 	}
+
 	v := b.data[b.head]
 	b.data[b.head] = zero
+
 	b.head++
 	if b.head == len(b.data) {
 		b.head = 0
 	}
+
 	b.len--
 	if b.len == 0 {
 		b.head = 0
 	}
+
 	return v, true
 }
 
@@ -163,13 +195,16 @@ func (b *Buffer[T]) PopBack() (T, bool) {
 	if b.len == 0 {
 		return zero, false
 	}
+
 	i := b.index(b.len - 1)
 	v := b.data[i]
 	b.data[i] = zero
+
 	b.len--
 	if b.len == 0 {
 		b.head = 0
 	}
+
 	return v, true
 }
 
@@ -180,11 +215,13 @@ func (b *Buffer[T]) PopFrontN(n int) []T {
 	if n <= 0 || b.len == 0 {
 		return nil
 	}
+
 	n = min(n, b.len)
 	out := make([]T, n)
 	for i := range out {
 		out[i], _ = b.PopFront()
 	}
+
 	return out
 }
 
@@ -195,11 +232,13 @@ func (b *Buffer[T]) PopBackN(n int) []T {
 	if n <= 0 || b.len == 0 {
 		return nil
 	}
+
 	n = min(n, b.len)
 	out := make([]T, n)
 	for i := range out {
 		out[i], _ = b.PopBack()
 	}
+
 	return out
 }
 
@@ -209,6 +248,7 @@ func (b *Buffer[T]) Grow(n int) {
 	if n <= 0 {
 		return
 	}
+
 	b.growFor(b.len + n)
 }
 
@@ -221,9 +261,11 @@ func (b *Buffer[T]) Shrink() {
 		b.head = 0
 		return
 	}
+
 	if len(b.data) == b.len && b.head == 0 {
 		return
 	}
+
 	trimmed := make([]T, b.len)
 	b.CopyTo(trimmed)
 	b.data = trimmed
@@ -239,14 +281,17 @@ func (b *Buffer[T]) Clip() {
 		b.head = 0
 		return
 	}
+
 	if len(b.data) == b.len && b.head == 0 {
 		return
 	}
+
 	if end := b.head + b.len; end <= len(b.data) {
 		b.data = b.data[b.head:end:end]
 		b.head = 0
 		return
 	}
+
 	clipped := make([]T, b.len)
 	b.CopyTo(clipped)
 	b.data = clipped
@@ -276,6 +321,7 @@ func (b *Buffer[T]) index(offset int) int {
 	if i >= len(b.data) {
 		i -= len(b.data)
 	}
+
 	return i
 }
 
@@ -285,6 +331,7 @@ func (b *Buffer[T]) growFor(need int) {
 	if need <= len(b.data) {
 		return
 	}
+
 	grown := make([]T, nextCap(len(b.data), need))
 	b.CopyTo(grown)
 	b.data = grown
@@ -298,12 +345,15 @@ func nextCap(current, need int) int {
 	if current <= 0 {
 		current = 1
 	}
+
 	for current < need {
 		if current < 1024 {
 			current *= 2
 			continue
 		}
+
 		current += current / 4
 	}
+
 	return current
 }

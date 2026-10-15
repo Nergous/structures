@@ -38,6 +38,7 @@ func Down[T any](s []T, i0 int, compare func(a, b T) int) bool {
 		if right := left + 1; right < n && compare(s[right], s[left]) < 0 {
 			child = right
 		}
+
 		if compare(s[child], s[i]) >= 0 {
 			break
 		}
@@ -45,6 +46,7 @@ func Down[T any](s []T, i0 int, compare func(a, b T) int) bool {
 		s[i], s[child] = s[child], s[i]
 		i = child
 	}
+
 	return i > i0
 }
 
@@ -88,6 +90,7 @@ func RemoveAt[T any](s []T, i int, compare func(a, b T) int) []T {
 	if i < last {
 		Fix(s, i, compare)
 	}
+
 	return s
 }
 
@@ -117,6 +120,7 @@ func DownMoved[T any](s []T, i0 int, compare func(a, b T) int, moved func(s []T,
 		if right := left + 1; right < n && compare(s[right], s[left]) < 0 {
 			child = right
 		}
+
 		if compare(s[child], x) >= 0 {
 			break
 		}
@@ -125,11 +129,14 @@ func DownMoved[T any](s []T, i0 int, compare func(a, b T) int, moved func(s []T,
 		moved(s, i)
 		i = child
 	}
+
 	if i == i0 {
 		return false
 	}
+
 	s[i] = x
 	moved(s, i)
+
 	return true
 }
 
@@ -148,6 +155,7 @@ func UpMoved[T any](s []T, i int, compare func(a, b T) int, moved func(s []T, i 
 		moved(s, i)
 		i = parent
 	}
+
 	if i != i0 {
 		s[i] = x
 		moved(s, i)
@@ -178,5 +186,6 @@ func RemoveAtMoved[T any](s []T, i int, compare func(a, b T) int, moved func(s [
 		moved(s, i)
 		FixMoved(s, i, compare, moved)
 	}
+
 	return s
 }

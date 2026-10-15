@@ -29,7 +29,9 @@ func ShrinkSlice[T any](s []T) []T {
 	if cap(s) == len(s) {
 		return s
 	}
+
 	trimmed := make([]T, len(s))
 	copy(trimmed, s)
+
 	return trimmed
 }

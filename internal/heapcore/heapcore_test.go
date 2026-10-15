@@ -12,13 +12,16 @@ type item struct {
 	id int
 }
 
-func cmpItem(a, b item) int { return cmp.Compare(a.v, b.v) }
+func cmpItem(a, b item) int {
+	return cmp.Compare(a.v, b.v)
+}
 
 func checkHeap[T any](t *testing.T, s []T, compare func(a, b T) int) {
 	t.Helper()
+
 	for i := 1; i < len(s); i++ {
 		if p := (i - 1) / 2; compare(s[p], s[i]) > 0 {
-			t.Fatalf("heap order broken: parent %d > child %d", p, i)
+			t.Fatalf("compare(s[%d], s[%d]) > 0, want <= 0 (heap order broken)", p, i)
 		}
 	}
 }
@@ -30,23 +33,31 @@ type tracker struct {
 }
 
 func newTracker(s []item) *tracker {
-	tr := &tracker{pos: make(map[int]int, len(s))}
+	tr := &tracker{
+		pos: make(map[int]int, len(s)),
+	}
+
 	for i, it := range s {
 		tr.pos[it.id] = i
 	}
+
 	return tr
 }
 
-func (tr *tracker) moved(s []item, i int) { tr.pos[s[i].id] = i }
+func (tr *tracker) moved(s []item, i int) {
+	tr.pos[s[i].id] = i
+}
 
 func (tr *tracker) check(t *testing.T, s []item) {
 	t.Helper()
-	if len(tr.pos) != len(s) {
-		t.Fatalf("tracked %d elements, slice has %d", len(tr.pos), len(s))
+
+	if got := len(tr.pos); got != len(s) {
+		t.Fatalf("len(pos) = %d, want %d", got, len(s))
 	}
+
 	for i, it := range s {
 		if got := tr.pos[it.id]; got != i {
-			t.Fatalf("element id=%d at index %d, tracked at %d", it.id, i, got)
+			t.Fatalf("pos[%d] = %d, want %d", it.id, got, i)
 		}
 	}
 }
@@ -56,6 +67,7 @@ func randItems(r *rand.Rand, n int) []item {
 	for i := range s {
 		s[i] = item{v: r.IntN(50), id: i}
 	}
+
 	return s
 }
 
@@ -64,6 +76,7 @@ func TestHeapify(t *testing.T) {
 	for n := range 40 {
 		s := randItems(r, n)
 		Heapify(s, cmpItem)
+
 		checkHeap(t, s, cmpItem)
 	}
 }
@@ -71,23 +84,32 @@ func TestHeapify(t *testing.T) {
 func TestUpDown_EmptyAndSingle(t *testing.T) {
 	var empty []int
 	Heapify(empty, cmp.Compare[int])
-	if Down(empty, 0, cmp.Compare[int]) {
-		t.Fatal("Down on empty slice reported a move")
+
+	if got := Down(empty, 0, cmp.Compare[int]); got {
+		t.Errorf("Down() on empty = %v, want false", got)
 	}
+
 	one := []int{7}
 	Up(one, 0, cmp.Compare[int])
-	if Down(one, 0, cmp.Compare[int]) || one[0] != 7 {
-		t.Fatal("single element moved")
+
+	if got := Down(one, 0, cmp.Compare[int]); got {
+		t.Errorf("Down() on single = %v, want false", got)
+	}
+
+	if got := one[0]; got != 7 {
+		t.Errorf("one[0] after Up(), Down() = %d, want 7", got)
 	}
 }
 
 func TestDown_ReportsMove(t *testing.T) {
 	s := []int{5, 1, 2}
-	if !Down(s, 0, cmp.Compare[int]) {
-		t.Fatal("Down did not report a move")
+
+	if got := Down(s, 0, cmp.Compare[int]); !got {
+		t.Fatalf("Down() = %v, want true", got)
 	}
-	if Down(s, 0, cmp.Compare[int]) {
-		t.Fatal("Down reported a move on a valid heap")
+
+	if got := Down(s, 0, cmp.Compare[int]); got {
+		t.Errorf("Down() on valid heap = %v, want false", got)
 	}
 }
 
@@ -99,6 +121,7 @@ func TestFix(t *testing.T) {
 		i := r.IntN(len(s))
 		s[i].v = r.IntN(50) - 10
 		Fix(s, i, cmpItem)
+
 		checkHeap(t, s, cmpItem)
 	}
 }
@@ -115,14 +138,17 @@ func TestRemoveAt(t *testing.T) {
 
 		full := s[:cap(s)]
 		s = RemoveAt(s, i, cmpItem)
+
 		checkHeap(t, s, cmpItem)
-		if full[len(s)] != (item{}) {
-			t.Fatal("vacated tail slot not zeroed")
+
+		if got := full[len(s)]; got != (item{}) {
+			t.Fatalf("data[%d] after RemoveAt(%d) = %v, want zero item", len(s), i, got)
 		}
+
 		slices.SortFunc(want, func(a, b item) int { return cmp.Compare(a.id, b.id) })
 		got := slices.SortedFunc(slices.Values(s), func(a, b item) int { return cmp.Compare(a.id, b.id) })
 		if !slices.Equal(got, want) {
-			t.Fatalf("RemoveAt(%d) left %v, want %v", i, got, want)
+			t.Fatalf("RemoveAt(%d) = %v, want %v (sorted by id)", i, got, want)
 		}
 	}
 }
@@ -130,12 +156,15 @@ func TestRemoveAt(t *testing.T) {
 func TestRemoveAt_Last(t *testing.T) {
 	s := []int{1, 2, 3}
 	s = RemoveAt(s, 2, cmp.Compare[int])
-	if !slices.Equal(s, []int{1, 2}) {
-		t.Fatalf("got %v", s)
+
+	if want := []int{1, 2}; !slices.Equal(s, want) {
+		t.Fatalf("RemoveAt(s, 2) = %v, want %v", s, want)
 	}
+
 	s = RemoveAt(s[:1], 0, cmp.Compare[int])
-	if len(s) != 0 {
-		t.Fatalf("got %v", s)
+
+	if got := len(s); got != 0 {
+		t.Fatalf("len(RemoveAt(s[:1], 0)) = %d, want 0", got)
 	}
 }
 
@@ -147,6 +176,7 @@ func TestMoved_Tracking(t *testing.T) {
 	s := randItems(r, 64)
 	tr := newTracker(s)
 	HeapifyMoved(s, cmpItem, tr.moved)
+
 	checkHeap(t, s, cmpItem)
 	tr.check(t, s)
 
@@ -167,6 +197,7 @@ func TestMoved_Tracking(t *testing.T) {
 			delete(tr.pos, s[i].id)
 			s = RemoveAtMoved(s, i, cmpItem, tr.moved)
 		}
+
 		checkHeap(t, s, cmpItem)
 		tr.check(t, s)
 	}
@@ -182,17 +213,20 @@ func TestMoved_MatchesPlain(t *testing.T) {
 		b := slices.Clone(a)
 		Heapify(a, cmpItem)
 		HeapifyMoved(b, cmpItem, noop)
+
 		if len(a) > 0 {
 			i := r.IntN(len(a))
 			a[i].v, b[i].v = -1, -1
 			Fix(a, i, cmpItem)
 			FixMoved(b, i, cmpItem, noop)
+
 			j := r.IntN(len(a))
 			a = RemoveAt(a, j, cmpItem)
 			b = RemoveAtMoved(b, j, cmpItem, noop)
 		}
-		if !slices.Equal(a, b) {
-			t.Fatalf("plain %v != moved %v", a, b)
+
+		if !slices.Equal(b, a) {
+			t.Fatalf("Moved variants = %v, want %v (same as plain)", b, a)
 		}
 	}
 }

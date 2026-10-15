@@ -14,17 +14,21 @@ func Panics(t testing.TB, name, want string, fn func()) {
 
 	defer func() {
 		t.Helper()
+
 		r := recover()
 		if r == nil {
 			t.Errorf("%s did not panic, want panic", name)
 			return
 		}
+
 		if want == "" {
 			return
 		}
+
 		if msg, _ := r.(string); !strings.Contains(msg, want) {
 			t.Errorf("%s panicked with %v, want message containing %q", name, r, want)
 		}
 	}()
+
 	fn()
 }
