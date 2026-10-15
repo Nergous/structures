@@ -168,6 +168,7 @@ func ExampleHeap_All() {
 	for v := range h.All() {
 		sum += v
 	}
+
 	fmt.Println(sum, h.Len())
 	// Output: 10 4
 }
@@ -273,6 +274,7 @@ func Example_topK() {
 			h.Push(v)
 			continue
 		}
+
 		h.PushPop(v)
 	}
 

@@ -149,6 +149,7 @@ func (h *Heap[T]) Len() int {
 	if h == nil {
 		return 0
 	}
+
 	return len(h.data)
 }
 
@@ -158,6 +159,7 @@ func (h *Heap[T]) Cap() int {
 	if h == nil {
 		return 0
 	}
+
 	return cap(h.data)
 }
 
@@ -176,6 +178,7 @@ func (h *Heap[T]) Peek() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return h.data[0], true
 }
 
@@ -193,6 +196,7 @@ func (h *Heap[T]) All() iter.Seq[T] {
 		if h == nil {
 			return
 		}
+
 		for _, v := range h.data {
 			if !yield(v) {
 				return
@@ -214,6 +218,7 @@ func (h *Heap[T]) Clone() *Heap[T] {
 	if h == nil {
 		return nil
 	}
+
 	return &Heap[T]{
 		data:    slices.Clone(h.data),
 		compare: h.compare,
@@ -229,6 +234,7 @@ func (h *Heap[T]) Slice() []T {
 	if h == nil || len(h.data) == 0 {
 		return nil
 	}
+
 	return slices.Clone(h.data)
 }
 
@@ -242,8 +248,10 @@ func (h *Heap[T]) Sorted() []T {
 	if h == nil || len(h.data) == 0 {
 		return nil
 	}
+
 	out := slices.Clone(h.data)
 	slices.SortFunc(out, h.compare)
+
 	return out
 }
 
@@ -278,6 +286,7 @@ func (h *Heap[T]) Push(v T) {
 // and on a zero-value Heap, even with no arguments.
 func (h *Heap[T]) PushN(vs ...T) {
 	h.mustStore("PushN")
+
 	if len(vs) == 0 {
 		return
 	}
@@ -288,6 +297,7 @@ func (h *Heap[T]) PushN(vs ...T) {
 		heapcore.Heapify(h.data, h.compare)
 		return
 	}
+
 	for i := n; i < len(h.data); i++ {
 		heapcore.Up(h.data, i, h.compare)
 	}
@@ -303,6 +313,7 @@ func (h *Heap[T]) Pop() (T, bool) {
 		var zero T
 		return zero, false
 	}
+
 	return h.popRoot(), true
 }
 
@@ -315,12 +326,14 @@ func (h *Heap[T]) PopN(n int) []T {
 	if h == nil || n <= 0 || len(h.data) == 0 {
 		return nil
 	}
+
 	n = min(n, len(h.data))
 
 	out := make([]T, n)
 	for i := range out {
 		out[i] = h.popRoot()
 	}
+
 	return out
 }
 
@@ -340,6 +353,7 @@ func (h *Heap[T]) PushPop(v T) T {
 	old := h.data[0]
 	h.data[0] = v
 	heapcore.Down(h.data, 0, h.compare)
+
 	return old
 }
 
@@ -354,6 +368,7 @@ func (h *Heap[T]) PushPop(v T) T {
 // receiver and on a zero-value Heap, which has no comparator.
 func (h *Heap[T]) Replace(v T) (T, bool) {
 	h.mustStore("Replace")
+
 	if len(h.data) == 0 {
 		h.data = append(h.data, v)
 		var zero T
@@ -363,6 +378,7 @@ func (h *Heap[T]) Replace(v T) (T, bool) {
 	old := h.data[0]
 	h.data[0] = v
 	heapcore.Down(h.data, 0, h.compare)
+
 	return old, true
 }
 
@@ -376,7 +392,9 @@ func (h *Heap[T]) Remove(v T) bool {
 	if i < 0 {
 		return false
 	}
+
 	h.removeAt(i)
+
 	return true
 }
 
@@ -439,9 +457,11 @@ func (h *Heap[T]) Clip() {
 // Grow requires a non-nil receiver and panics on a nil one.
 func (h *Heap[T]) Grow(n int) {
 	shared.MustNotNil(h, "binheap", "Grow")
+
 	if n <= 0 {
 		return
 	}
+
 	h.data = slices.Grow(h.data, n)
 }
 
@@ -452,11 +472,13 @@ func (h *Heap[T]) index(v T) int {
 	if h == nil {
 		return -1
 	}
+
 	for i, item := range h.data {
 		if h.compare(item, v) == 0 {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -464,6 +486,7 @@ func (h *Heap[T]) index(v T) int {
 func (h *Heap[T]) popRoot() T {
 	v := h.data[0]
 	h.removeAt(0)
+
 	return v
 }
 
@@ -478,6 +501,7 @@ func (h *Heap[T]) removeAt(i int) {
 // either h is nil or it is a zero-value Heap without a comparator.
 func (h *Heap[T]) mustStore(op string) {
 	shared.MustNotNil(h, "binheap", op)
+
 	if h.compare == nil {
 		panic("binheap: " + op + " on zero-value Heap; create it with New, NewMax, or NewFunc")
 	}
@@ -492,6 +516,7 @@ func rebuildCheaper(n, k int) bool {
 	if k >= n {
 		return true
 	}
+
 	return 2*(n+k) < k*bits.Len(uint(n))
 }
 
@@ -499,6 +524,7 @@ func newHeap[T any](capacity int, compare func(a, b T) int) *Heap[T] {
 	if compare == nil {
 		panic("binheap: nil comparator")
 	}
+
 	return &Heap[T]{
 		data:    make([]T, 0, max(capacity, 0)),
 		compare: compare,
@@ -509,8 +535,10 @@ func from[T any](s []T, compare func(a, b T) int) *Heap[T] {
 	if compare == nil {
 		panic("binheap: nil comparator")
 	}
+
 	data := slices.Clone(s)
 	heapcore.Heapify(data, compare)
+
 	return &Heap[T]{
 		data:    data,
 		compare: compare,

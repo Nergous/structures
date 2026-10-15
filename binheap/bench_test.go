@@ -31,6 +31,7 @@ func pseudoSlice(n int) []int {
 	for i := range s {
 		s[i] = pseudo(i)
 	}
+
 	return s
 }
 
@@ -46,6 +47,7 @@ func BenchmarkPush(b *testing.B) {
 		h.Push(pseudo(i))
 		i++
 	}
+
 	intSink = h.Len()
 }
 
@@ -59,8 +61,16 @@ func BenchmarkPushN(b *testing.B) {
 		base  int
 		batch int
 	}{
-		{name: "small-into-large", base: benchSize, batch: 8},
-		{name: "into-empty", base: 0, batch: benchSize},
+		{
+			name:  "small-into-large",
+			base:  benchSize,
+			batch: 8,
+		},
+		{
+			name:  "into-empty",
+			base:  0,
+			batch: benchSize,
+		},
 	}
 
 	for _, c := range cases {
@@ -80,6 +90,7 @@ func BenchmarkPushN(b *testing.B) {
 
 				h.PushN(vs...)
 			}
+
 			intSink = h.Len()
 		})
 	}
@@ -100,6 +111,7 @@ func BenchmarkPop(b *testing.B) {
 			h.PushN(chunk...)
 			b.StartTimer()
 		}
+
 		intSink, boolSink = h.Pop()
 	}
 }
@@ -111,6 +123,7 @@ func BenchmarkPushPop(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	i := 0
 	for b.Loop() {
 		intSink = h.PushPop(i + 1<<30)
@@ -125,12 +138,14 @@ func BenchmarkReplace(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	last := 0
 	i := 0
 	for b.Loop() {
 		last, boolSink = h.Replace(last + pseudo(i)%(1<<16))
 		i++
 	}
+
 	intSink = last
 }
 
@@ -140,6 +155,7 @@ func BenchmarkPeek(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		intSink, boolSink = h.Peek()
 	}
@@ -151,6 +167,7 @@ func BenchmarkFrom(b *testing.B) {
 	s := pseudoSlice(benchSize)
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		heapSink = From(s)
 	}
@@ -162,6 +179,7 @@ func BenchmarkContains(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		boolSink = h.Contains(-1)
 	}
@@ -173,11 +191,13 @@ func BenchmarkAll(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sum := 0
 		for v := range h.All() {
 			sum += v
 		}
+
 		intSink = sum
 	}
 }
@@ -188,6 +208,7 @@ func BenchmarkSlice(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sliceSink = h.Slice()
 	}
@@ -198,6 +219,7 @@ func BenchmarkSorted(b *testing.B) {
 	h := From(pseudoSlice(benchSize))
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		sliceSink = h.Sorted()
 	}
@@ -215,6 +237,7 @@ func (h *intHeap) Pop() any {
 	n := len(old)
 	x := old[n-1]
 	*h = old[:n-1]
+
 	return x
 }
 
@@ -226,6 +249,7 @@ func BenchmarkPushPopCycle(b *testing.B) {
 		h := From(pseudoSlice(benchSize))
 
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			h.Push(pseudo(i))
@@ -239,6 +263,7 @@ func BenchmarkPushPopCycle(b *testing.B) {
 		heap.Init(&h)
 
 		b.ReportAllocs()
+
 		i := 0
 		for b.Loop() {
 			heap.Push(&h, pseudo(i))
