@@ -1,22 +1,26 @@
-// Package ring implements the growable ring buffer shared by the queue and
-// deque packages.
+// Package ring provides the growable ring buffer shared by the queue and deque
+// packages.
 //
 // A [Buffer] stores elements in a circular slice. It supports pushing and
-// popping at both ends in amortized O(1) time. The buffer never panics on an
-// empty state: removals and inspections report false instead. Nil-receiver
-// handling and public documentation belong to the packages that wrap it.
+// popping at both ends in amortized O(1). The buffer never panics on an empty
+// state: removals and inspections report false instead. Nil-receiver handling
+// and public documentation belong to the packages that wrap it.
 //
-// The zero Buffer is empty and ready to use. Buffer is not safe for concurrent
-// use.
+// The zero value of Buffer is empty and ready to use. Buffer is not safe for
+// concurrent use.
 package ring
 
-// Buffer is a growable ring buffer. The live elements start at head and wrap
-// around the end of data. Capacity equals len(data), so every slot of data is
-// usable.
+// smallCap is the capacity below which the buffer doubles when it grows; at or
+// above it, the buffer grows by a quarter to limit wasted space.
+const smallCap = 1024
+
+// Buffer is a growable ring buffer. The live elements wrap around the end of
+// the backing array, and every slot of that array is usable, so the capacity
+// equals the array length.
 type Buffer[T any] struct {
-	data []T
-	head int
-	len  int
+	data []T // backing array; len(data) is the capacity
+	head int // index in data of the front element
+	len  int // number of live elements
 }
 
 // WithCap returns an empty buffer with room for at least n elements. A
@@ -96,20 +100,9 @@ func (b *Buffer[T]) Clone() Buffer[T] {
 		data: make([]T, b.len),
 		len:  b.len,
 	}
-
 	b.CopyTo(c.data)
 
 	return c
-}
-
-// PushBack appends v at the back, growing the buffer when it is full.
-func (b *Buffer[T]) PushBack(v T) {
-	if b.len == len(b.data) {
-		b.growFor(b.len + 1)
-	}
-
-	b.data[b.index(b.len)] = v
-	b.len++
 }
 
 // PushFront prepends v at the front, growing the buffer when it is full.
@@ -127,18 +120,14 @@ func (b *Buffer[T]) PushFront(v T) {
 	b.len++
 }
 
-// PushBackN appends vs in order, growing the buffer at most once.
-func (b *Buffer[T]) PushBackN(vs []T) {
-	if len(vs) == 0 {
-		return
+// PushBack appends v at the back, growing the buffer when it is full.
+func (b *Buffer[T]) PushBack(v T) {
+	if b.len == len(b.data) {
+		b.growFor(b.len + 1)
 	}
 
-	b.growFor(b.len + len(vs))
-	for i, v := range vs {
-		b.data[b.index(b.len+i)] = v
-	}
-
-	b.len += len(vs)
+	b.data[b.index(b.len)] = v
+	b.len++
 }
 
 // PushFrontN prepends vs so that vs[0] becomes the new front, growing the
@@ -157,6 +146,21 @@ func (b *Buffer[T]) PushFrontN(vs []T) {
 
 	for i, v := range vs {
 		b.data[b.index(i)] = v
+	}
+
+	b.len += len(vs)
+}
+
+// PushBackN appends vs in order, growing the buffer at most once.
+func (b *Buffer[T]) PushBackN(vs []T) {
+	if len(vs) == 0 {
+		return
+	}
+
+	b.growFor(b.len + len(vs))
+
+	for i, v := range vs {
+		b.data[b.index(b.len+i)] = v
 	}
 
 	b.len += len(vs)
@@ -209,7 +213,7 @@ func (b *Buffer[T]) PopBack() (T, bool) {
 }
 
 // PopFrontN removes up to n elements from the front and returns them in
-// front-to-back order. It returns nil when n is not positive or the buffer is
+// front-to-back order. It returns nil when n is non-positive or the buffer is
 // empty.
 func (b *Buffer[T]) PopFrontN(n int) []T {
 	if n <= 0 || b.len == 0 {
@@ -226,7 +230,7 @@ func (b *Buffer[T]) PopFrontN(n int) []T {
 }
 
 // PopBackN removes up to n elements from the back and returns them in removal
-// (back-to-front) order. It returns nil when n is not positive or the buffer is
+// (back-to-front) order. It returns nil when n is non-positive or the buffer is
 // empty.
 func (b *Buffer[T]) PopBackN(n int) []T {
 	if n <= 0 || b.len == 0 {
@@ -242,14 +246,20 @@ func (b *Buffer[T]) PopBackN(n int) []T {
 	return out
 }
 
-// Grow makes room for at least n more elements. It is a no-op when n is not
-// positive or the capacity already suffices.
-func (b *Buffer[T]) Grow(n int) {
-	if n <= 0 {
-		return
-	}
+// Clear removes all elements and releases the backing array.
+func (b *Buffer[T]) Clear() {
+	b.data = nil
+	b.head = 0
+	b.len = 0
+}
 
-	b.growFor(b.len + n)
+// Reset removes all elements, zeroes them, and keeps the backing array.
+func (b *Buffer[T]) Reset() {
+	first, second := b.Segments()
+	clear(first)
+	clear(second)
+	b.head = 0
+	b.len = 0
 }
 
 // Shrink copies the live elements into a new array of exactly Len elements so
@@ -286,7 +296,8 @@ func (b *Buffer[T]) Clip() {
 		return
 	}
 
-	if end := b.head + b.len; end <= len(b.data) {
+	end := b.head + b.len
+	if end <= len(b.data) {
 		b.data = b.data[b.head:end:end]
 		b.head = 0
 		return
@@ -298,24 +309,18 @@ func (b *Buffer[T]) Clip() {
 	b.head = 0
 }
 
-// Clear removes all elements and releases the backing array.
-func (b *Buffer[T]) Clear() {
-	b.data = nil
-	b.head = 0
-	b.len = 0
+// Grow makes room for at least n more elements. It is a no-op when n is
+// non-positive or the capacity already suffices.
+func (b *Buffer[T]) Grow(n int) {
+	if n <= 0 {
+		return
+	}
+
+	b.growFor(b.len + n)
 }
 
-// Reset removes all elements, zeroes them, and keeps the backing array.
-func (b *Buffer[T]) Reset() {
-	first, second := b.Segments()
-	clear(first)
-	clear(second)
-	b.head = 0
-	b.len = 0
-}
-
-// index maps a logical offset from the front to a position in data. offset must
-// be less than the capacity.
+// index maps a logical offset from the front to a position in data. offset
+// must be less than the capacity.
 func (b *Buffer[T]) index(offset int) int {
 	i := b.head + offset
 	if i >= len(b.data) {
@@ -339,15 +344,15 @@ func (b *Buffer[T]) growFor(need int) {
 }
 
 // nextCap returns the capacity to allocate when current is too small for need:
-// it doubles below 1024 elements and grows by a quarter above that, starting
-// from 1.
+// starting from 1, it doubles below smallCap and grows by a quarter at or above
+// it.
 func nextCap(current, need int) int {
 	if current <= 0 {
 		current = 1
 	}
 
 	for current < need {
-		if current < 1024 {
+		if current < smallCap {
 			current *= 2
 			continue
 		}

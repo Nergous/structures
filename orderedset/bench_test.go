@@ -1,415 +1,74 @@
 package orderedset
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Nergous/structures/set"
 )
 
+// benchSize is the number of values in containers prepared for benchmarks.
+const benchSize = 1 << 12
+
 // Package-level sinks prevent the compiler from optimizing away benchmarked
 // results (and the work that produces them).
 var (
-	intSink     int
-	boolSink    bool
-	sliceSink   []int
-	setSink     *Set[int]
-	hashSetSink *set.Set[int]
+	intSink         int
+	boolSink        bool
+	sliceSink       []int
+	setSink         *Set[int]
+	setBaselineSink *set.Set[int]
 )
 
-// benchSize is the steady-state set size for benchmarks that keep the set
-// length constant.
-const benchSize = 1 << 12
-
-// benchIterSize is the set size for traversal, set algebra, and construction
-// benchmarks.
-const benchIterSize = 1 << 10
-
-// benchFill returns an ordered set holding lo, lo+1, ..., lo+n-1.
-func benchFill(lo, n int) *Set[int] {
+// filled returns a set holding the values 0..n-1 in insertion order.
+func filled(n int) *Set[int] {
 	s := NewWithCap[int](n)
 	for i := range n {
-		s.Add(lo + i)
+		s.Add(i)
 	}
 
 	return s
 }
 
-// benchFillSet returns an unordered set holding lo, lo+1, ..., lo+n-1.
-func benchFillSet(lo, n int) *set.Set[int] {
+// filledSet returns a set.Set holding the values 0..n-1.
+func filledSet(n int) *set.Set[int] {
 	s := set.NewWithCap[int](n)
 	for i := range n {
-		s.Add(lo + i)
+		s.Add(i)
 	}
 
 	return s
 }
 
-// BenchmarkAdd measures inserting new values, against an unordered set that
-// gets the same values, which shows the cost of keeping order.
-func BenchmarkAdd(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		s := NewWithCap[int](benchSize)
-
-		b.ReportAllocs()
-
-		v := 0
-		for b.Loop() {
-			if s.Len() == benchSize {
-				b.StopTimer()
-				s.Reset()
-				b.StartTimer()
-			}
-
-			boolSink = s.Add(v)
-			v++
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		s := set.NewWithCap[int](benchSize)
-
-		b.ReportAllocs()
-
-		v := 0
-		for b.Loop() {
-			if s.Len() == benchSize {
-				b.StopTimer()
-				s.Reset()
-				b.StartTimer()
-			}
-
-			boolSink = s.Add(v)
-			v++
-		}
-	})
-}
-
-// BenchmarkAddExisting measures adding a value already present, which must
-// leave both membership and order unchanged.
-func BenchmarkAddExisting(b *testing.B) {
-	s := benchFill(0, benchSize)
-
-	b.ReportAllocs()
-
-	i := 0
-	for b.Loop() {
-		boolSink = s.Add(i % benchSize)
-		i++
+// overlapping returns two sets of n values each that share half of their
+// values: 0..n-1 and n/2..n/2+n-1.
+func overlapping(n int) (*Set[int], *Set[int]) {
+	a := filled(n)
+	c := NewWithCap[int](n)
+	for i := range n {
+		c.Add(i + n/2)
 	}
+
+	return a, c
 }
 
-// BenchmarkContains measures lookups of present values, against an unordered
-// set.
-func BenchmarkContains(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		s := benchFill(0, benchSize)
-
-		b.ReportAllocs()
-
-		i := 0
-		for b.Loop() {
-			boolSink = s.Contains(i % benchSize)
-			i++
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		s := benchFillSet(0, benchSize)
-
-		b.ReportAllocs()
-
-		i := 0
-		for b.Loop() {
-			boolSink = s.Contains(i % benchSize)
-			i++
-		}
-	})
-}
-
-// BenchmarkRemove measures Remove in isolation, oldest value first. Refilling
-// happens outside the timed section: whenever the set drains we add a fresh
-// chunk with the timer stopped, so only removals are measured.
-func BenchmarkRemove(b *testing.B) {
-	b.ReportAllocs()
-
-	s := NewWithCap[int](benchSize)
-	next := 0
-	for b.Loop() {
-		if s.IsEmpty() {
-			b.StopTimer()
-			for j := range benchSize {
-				s.Add(next + j)
-			}
-
-			next += benchSize
-			b.StartTimer()
-		}
-
-		boolSink = s.Remove(next - s.Len())
+// overlappingSet returns the operands of overlapping as set.Set values for the
+// set baseline.
+func overlappingSet(n int) (*set.Set[int], *set.Set[int]) {
+	a := filledSet(n)
+	c := set.NewWithCap[int](n)
+	for i := range n {
+		c.Add(i + n/2)
 	}
+
+	return a, c
 }
 
-// BenchmarkAddRemoveChurn measures removing a value and adding it back at a
-// constant set size, which leaves holes behind and exercises compaction,
-// against an unordered set doing the same.
-func BenchmarkAddRemoveChurn(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		s := benchFill(0, benchSize)
-
-		b.ReportAllocs()
-
-		i := 0
-		for b.Loop() {
-			v := i % benchSize
-			s.Remove(v)
-			boolSink = s.Add(v)
-			i++
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		s := benchFillSet(0, benchSize)
-
-		b.ReportAllocs()
-
-		i := 0
-		for b.Loop() {
-			v := i % benchSize
-			s.Remove(v)
-			boolSink = s.Add(v)
-			i++
-		}
-	})
-}
-
-// BenchmarkPopFirst measures removing the oldest value. The set is refilled
-// with the timer stopped whenever it drains.
-func BenchmarkPopFirst(b *testing.B) {
-	b.ReportAllocs()
-
-	s := NewWithCap[int](benchSize)
-	for b.Loop() {
-		if s.IsEmpty() {
-			b.StopTimer()
-			for j := range benchSize {
-				s.Add(j)
-			}
-
-			b.StartTimer()
-		}
-
-		v, ok := s.PopFirst()
-		intSink = v
-		boolSink = ok
-	}
-}
-
-// BenchmarkPopLast measures removing the newest value. The set is refilled
-// with the timer stopped whenever it drains.
-func BenchmarkPopLast(b *testing.B) {
-	b.ReportAllocs()
-
-	s := NewWithCap[int](benchSize)
-	for b.Loop() {
-		if s.IsEmpty() {
-			b.StopTimer()
-			for j := range benchSize {
-				s.Add(j)
-			}
-
-			b.StartTimer()
-		}
-
-		v, ok := s.PopLast()
-		intSink = v
-		boolSink = ok
-	}
-}
-
-// BenchmarkMoveToBack measures marking a value as the newest, the hit path of
-// an LRU cache.
-func BenchmarkMoveToBack(b *testing.B) {
-	s := benchFill(0, benchSize)
-
-	b.ReportAllocs()
-
-	i := 0
-	for b.Loop() {
-		boolSink = s.MoveToBack((i * 7) % benchSize)
-		i++
-	}
-}
-
-// BenchmarkAll measures a full ordered traversal, against ranging over an
-// unordered set.
-func BenchmarkAll(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		s := benchFill(0, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			sum := 0
-			for v := range s.All() {
-				sum += v
-			}
-
-			intSink = sum
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		s := benchFillSet(0, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			sum := 0
-			for v := range s.All() {
-				sum += v
-			}
-
-			intSink = sum
-		}
-	})
-}
-
-// BenchmarkBackward measures a full traversal from newest to oldest.
-func BenchmarkBackward(b *testing.B) {
-	s := benchFill(0, benchIterSize)
-
-	b.ReportAllocs()
-
-	for b.Loop() {
-		sum := 0
-		for v := range s.Backward() {
-			sum += v
-		}
-
-		intSink = sum
-	}
-}
-
-// BenchmarkSlice measures copying the set out to a plain slice in insertion
-// order, which allocates exactly one backing array per call.
-func BenchmarkSlice(b *testing.B) {
-	s := benchFill(0, benchIterSize)
-
-	b.ReportAllocs()
-
-	for b.Loop() {
-		sliceSink = s.Slice()
-	}
-}
-
-// BenchmarkClone measures copying a set with no holes.
-func BenchmarkClone(b *testing.B) {
-	s := benchFill(0, benchSize)
-
-	b.ReportAllocs()
-
-	for b.Loop() {
-		setSink = s.Clone()
-	}
-}
-
-// BenchmarkRemoveFunc measures removing every other value in one pass.
-func BenchmarkRemoveFunc(b *testing.B) {
-	b.ReportAllocs()
-
-	var s *Set[int]
-	for b.Loop() {
-		b.StopTimer()
-		s = benchFill(0, benchSize)
-		b.StartTimer()
-
-		intSink = s.RemoveFunc(func(v int) bool { return v%2 == 0 })
-	}
-}
-
-// BenchmarkUnion measures non-mutating union of two sets with 50% overlap,
-// against an unordered set.
-func BenchmarkUnion(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		a := benchFill(0, benchIterSize)
-		c := benchFill(benchIterSize/2, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			setSink = a.Union(c)
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		a := benchFillSet(0, benchIterSize)
-		c := benchFillSet(benchIterSize/2, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			hashSetSink = a.Union(c)
-		}
-	})
-}
-
-// BenchmarkIntersection measures non-mutating intersection of two sets with
-// 50% overlap, against an unordered set.
-func BenchmarkIntersection(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		a := benchFill(0, benchIterSize)
-		c := benchFill(benchIterSize/2, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			setSink = a.Intersection(c)
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		a := benchFillSet(0, benchIterSize)
-		c := benchFillSet(benchIterSize/2, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			hashSetSink = a.Intersection(c)
-		}
-	})
-}
-
-// BenchmarkDifference measures non-mutating difference of two sets with 50%
-// overlap, against an unordered set.
-func BenchmarkDifference(b *testing.B) {
-	b.Run("orderedset", func(b *testing.B) {
-		a := benchFill(0, benchIterSize)
-		c := benchFill(benchIterSize/2, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			setSink = a.Difference(c)
-		}
-	})
-
-	b.Run("set", func(b *testing.B) {
-		a := benchFillSet(0, benchIterSize)
-		c := benchFillSet(benchIterSize/2, benchIterSize)
-
-		b.ReportAllocs()
-
-		for b.Loop() {
-			hashSetSink = a.Difference(c)
-		}
-	})
-}
-
-// BenchmarkFrom measures building a set from a slice in which every value
-// appears twice, against an unordered set. From is Of over the same slice,
-// so this covers both constructors.
+// BenchmarkFrom measures building a set from benchSize values in which every
+// value appears twice, against set. From is Of over the same slice, so this
+// covers both constructors.
 func BenchmarkFrom(b *testing.B) {
-	vs := make([]int, benchIterSize)
+	vs := make([]int, benchSize)
 	for i := range vs {
 		vs[i] = i / 2
 	}
@@ -426,7 +85,532 @@ func BenchmarkFrom(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			hashSetSink = set.From(vs)
+			setBaselineSink = set.From(vs)
 		}
 	})
+}
+
+// BenchmarkContains measures lookups of present ("hit") and absent ("miss")
+// values, against set.
+func BenchmarkContains(b *testing.B) {
+	b.Run("orderedset", func(b *testing.B) {
+		s := filled(benchSize)
+
+		b.Run("hit", func(b *testing.B) {
+			b.ReportAllocs()
+
+			i := 0
+			for b.Loop() {
+				v := i % benchSize
+				boolSink = s.Contains(v)
+				i++
+			}
+		})
+
+		b.Run("miss", func(b *testing.B) {
+			b.ReportAllocs()
+
+			i := 0
+			for b.Loop() {
+				v := benchSize + i%benchSize
+				boolSink = s.Contains(v)
+				i++
+			}
+		})
+	})
+
+	b.Run("set", func(b *testing.B) {
+		s := filledSet(benchSize)
+
+		b.Run("hit", func(b *testing.B) {
+			b.ReportAllocs()
+
+			i := 0
+			for b.Loop() {
+				v := i % benchSize
+				boolSink = s.Contains(v)
+				i++
+			}
+		})
+
+		b.Run("miss", func(b *testing.B) {
+			b.ReportAllocs()
+
+			i := 0
+			for b.Loop() {
+				v := benchSize + i%benchSize
+				boolSink = s.Contains(v)
+				i++
+			}
+		})
+	})
+}
+
+// BenchmarkFirst measures reading the oldest value, which must stay O(1) and
+// allocation-free.
+func BenchmarkFirst(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		intSink, boolSink = s.First()
+	}
+}
+
+// BenchmarkLast measures reading the newest value, which must stay O(1) and
+// allocation-free.
+func BenchmarkLast(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		intSink, boolSink = s.Last()
+	}
+}
+
+// BenchmarkAll measures a full iteration over benchSize values via the
+// range-over-func iterator, confirming iteration is allocation-free, against
+// set.
+func BenchmarkAll(b *testing.B) {
+	b.Run("orderedset", func(b *testing.B) {
+		s := filled(benchSize)
+
+		b.ReportAllocs()
+
+		for b.Loop() {
+			sum := 0
+			for v := range s.All() {
+				sum += v
+			}
+
+			intSink = sum
+		}
+	})
+
+	b.Run("set", func(b *testing.B) {
+		s := filledSet(benchSize)
+
+		b.ReportAllocs()
+
+		for b.Loop() {
+			sum := 0
+			for v := range s.All() {
+				sum += v
+			}
+
+			intSink = sum
+		}
+	})
+}
+
+// BenchmarkBackward measures a full reverse iteration over benchSize values
+// via the range-over-func iterator, confirming iteration is allocation-free.
+func BenchmarkBackward(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		sum := 0
+		for v := range s.Backward() {
+			sum += v
+		}
+
+		intSink = sum
+	}
+}
+
+// BenchmarkClone measures cloning a set of benchSize values, which allocates
+// the new set, its backing array, and its index map per call, against set.
+func BenchmarkClone(b *testing.B) {
+	b.Run("orderedset", func(b *testing.B) {
+		s := filled(benchSize)
+
+		b.ReportAllocs()
+
+		for b.Loop() {
+			setSink = s.Clone()
+		}
+	})
+
+	b.Run("set", func(b *testing.B) {
+		s := filledSet(benchSize)
+
+		b.ReportAllocs()
+
+		for b.Loop() {
+			setBaselineSink = s.Clone()
+		}
+	})
+}
+
+// BenchmarkSlice measures copying benchSize values out to a plain slice, which
+// allocates exactly one backing array per call.
+func BenchmarkSlice(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		sliceSink = s.Slice()
+	}
+}
+
+// BenchmarkAdd measures Add into a set that grows from empty to benchSize, so
+// the amortized cost of reallocations is included, against set. When the set
+// reaches benchSize it is cleared with the timer stopped.
+func BenchmarkAdd(b *testing.B) {
+	b.Run("orderedset", func(b *testing.B) {
+		s := New[int]()
+
+		b.ReportAllocs()
+
+		i := 0
+		for b.Loop() {
+			if s.Len() == benchSize {
+				b.StopTimer()
+				s.Clear()
+				b.StartTimer()
+			}
+
+			boolSink = s.Add(i)
+			i++
+		}
+
+		intSink = s.Len()
+	})
+
+	b.Run("set", func(b *testing.B) {
+		s := set.New[int]()
+
+		b.ReportAllocs()
+
+		i := 0
+		for b.Loop() {
+			if s.Len() == benchSize {
+				b.StopTimer()
+				s.Clear()
+				b.StartTimer()
+			}
+
+			boolSink = s.Add(i)
+			i++
+		}
+
+		intSink = s.Len()
+	})
+}
+
+// BenchmarkAddExisting measures Add of a value that is already present, which
+// leaves the set unchanged and does not allocate.
+func BenchmarkAddExisting(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	i := 0
+	for b.Loop() {
+		v := i % benchSize
+		boolSink = s.Add(v)
+		i++
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkAddN measures one AddN of a 256-value batch of new values into a
+// set with room for benchSize values, so no reallocation happens. When the set
+// is full it is reset with the timer stopped.
+func BenchmarkAddN(b *testing.B) {
+	const batch = 256
+
+	vs := filled(benchSize).Slice()
+	s := NewWithCap[int](benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if s.Len() == benchSize {
+			b.StopTimer()
+			// retain capacity so the next AddN does not reallocate
+			s.Reset()
+			b.StartTimer()
+		}
+
+		off := s.Len()
+		s.AddN(vs[off : off+batch]...)
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkRemove measures one Remove of a present value. When the set drains
+// it is refilled to benchSize values with the timer stopped.
+func BenchmarkRemove(b *testing.B) {
+	vs := filled(benchSize).Slice()
+	s := NewWithCap[int](benchSize)
+
+	b.ReportAllocs()
+
+	i := 0
+	for b.Loop() {
+		if s.IsEmpty() {
+			b.StopTimer()
+			s.AddN(vs...)
+			b.StartTimer()
+		}
+
+		v := i % benchSize
+		boolSink = s.Remove(v)
+		i++
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkRemoveFunc measures one RemoveFunc pass that removes every other
+// value of benchSize. The removed values are put back with the timer stopped
+// before each pass; the pass itself is long enough to amortize the restore.
+func BenchmarkRemoveFunc(b *testing.B) {
+	s := filled(benchSize)
+	del := func(v int) bool {
+		return v%2 == 0
+	}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if s.Len() < benchSize {
+			b.StopTimer()
+			for i := range benchSize {
+				s.Add(i)
+			}
+
+			b.StartTimer()
+		}
+
+		intSink = s.RemoveFunc(del)
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkPopFirst measures one PopFirst, which must not allocate. When the
+// set drains it is refilled to benchSize values with the timer stopped.
+func BenchmarkPopFirst(b *testing.B) {
+	vs := filled(benchSize).Slice()
+	s := NewWithCap[int](benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if s.IsEmpty() {
+			b.StopTimer()
+			s.AddN(vs...)
+			b.StartTimer()
+		}
+
+		intSink, boolSink = s.PopFirst()
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkPopLast measures one PopLast, which must not allocate. When the set
+// drains it is refilled to benchSize values with the timer stopped.
+func BenchmarkPopLast(b *testing.B) {
+	vs := filled(benchSize).Slice()
+	s := NewWithCap[int](benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if s.IsEmpty() {
+			b.StopTimer()
+			s.AddN(vs...)
+			b.StartTimer()
+		}
+
+		intSink, boolSink = s.PopLast()
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkMoveToBack measures MoveToBack on a set of benchSize values, the
+// hit path of an LRU cache.
+func BenchmarkMoveToBack(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	i := 0
+	for b.Loop() {
+		v := (i * 7) % benchSize
+		boolSink = s.MoveToBack(v)
+		i++
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkUnion measures non-mutating union of two sets with 50% overlap
+// across several operand sizes, against set; it allocates the result set.
+func BenchmarkUnion(b *testing.B) {
+	sizes := []int{16, 1024, 65536}
+
+	b.Run("orderedset", func(b *testing.B) {
+		for _, size := range sizes {
+			b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
+				a, c := overlapping(size)
+
+				b.ReportAllocs()
+
+				for b.Loop() {
+					setSink = a.Union(c)
+				}
+			})
+		}
+	})
+
+	b.Run("set", func(b *testing.B) {
+		for _, size := range sizes {
+			b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
+				a, c := overlappingSet(size)
+
+				b.ReportAllocs()
+
+				for b.Loop() {
+					setBaselineSink = a.Union(c)
+				}
+			})
+		}
+	})
+}
+
+// BenchmarkIntersection measures non-mutating intersection of two sets with
+// 50% overlap across several operand sizes, against set; it allocates the
+// result set.
+func BenchmarkIntersection(b *testing.B) {
+	sizes := []int{16, 1024, 65536}
+
+	b.Run("orderedset", func(b *testing.B) {
+		for _, size := range sizes {
+			b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
+				a, c := overlapping(size)
+
+				b.ReportAllocs()
+
+				for b.Loop() {
+					setSink = a.Intersection(c)
+				}
+			})
+		}
+	})
+
+	b.Run("set", func(b *testing.B) {
+		for _, size := range sizes {
+			b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
+				a, c := overlappingSet(size)
+
+				b.ReportAllocs()
+
+				for b.Loop() {
+					setBaselineSink = a.Intersection(c)
+				}
+			})
+		}
+	})
+}
+
+// BenchmarkDifference measures non-mutating difference of two sets with 50%
+// overlap across several operand sizes, against set; it allocates the result
+// set.
+func BenchmarkDifference(b *testing.B) {
+	sizes := []int{16, 1024, 65536}
+
+	b.Run("orderedset", func(b *testing.B) {
+		for _, size := range sizes {
+			b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
+				a, c := overlapping(size)
+
+				b.ReportAllocs()
+
+				for b.Loop() {
+					setSink = a.Difference(c)
+				}
+			})
+		}
+	})
+
+	b.Run("set", func(b *testing.B) {
+		for _, size := range sizes {
+			b.Run(fmt.Sprintf("n=%d", size), func(b *testing.B) {
+				a, c := overlappingSet(size)
+
+				b.ReportAllocs()
+
+				for b.Loop() {
+					setBaselineSink = a.Difference(c)
+				}
+			})
+		}
+	})
+}
+
+// BenchmarkAddRemoveChurn measures one Remove plus one Add of the same value
+// at a steady size of benchSize, which leaves holes behind and exercises
+// compaction, against set.
+func BenchmarkAddRemoveChurn(b *testing.B) {
+	b.Run("orderedset", func(b *testing.B) {
+		s := filled(benchSize)
+
+		b.ReportAllocs()
+
+		i := 0
+		for b.Loop() {
+			v := i % benchSize
+			boolSink = s.Remove(v)
+			boolSink = s.Add(v)
+			i++
+		}
+
+		intSink = s.Len()
+	})
+
+	b.Run("set", func(b *testing.B) {
+		s := filledSet(benchSize)
+
+		b.ReportAllocs()
+
+		i := 0
+		for b.Loop() {
+			v := i % benchSize
+			boolSink = s.Remove(v)
+			boolSink = s.Add(v)
+			i++
+		}
+
+		intSink = s.Len()
+	})
+}
+
+// BenchmarkPopFirstAddChurn measures one PopFirst plus one Add of a new value
+// at a steady size of benchSize: the eviction path of a FIFO cache.
+func BenchmarkPopFirstAddChurn(b *testing.B) {
+	s := filled(benchSize)
+
+	b.ReportAllocs()
+
+	i := 0
+	for b.Loop() {
+		v := benchSize + i
+		intSink, boolSink = s.PopFirst()
+		boolSink = s.Add(v)
+		i++
+	}
+
+	intSink = s.Len()
 }

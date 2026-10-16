@@ -1,19 +1,25 @@
-// Package stack provides a generic, slice-backed LIFO (last-in, first-out) stack.
+// Package stack provides a generic, slice-backed LIFO (last-in, first-out)
+// stack.
 //
 // Create a stack with [New] or [NewWithCap]. Elements are added with
 // [Stack.Push] or [Stack.PushN] and removed from the top with [Stack.Pop] or
 // [Stack.PopN]; [Stack.Peek] inspects the top without removing it.
 //
-// Push runs in amortized O(1) time, occasionally reallocating the backing
-// array as it grows. Pop, Peek, Len, Cap and IsEmpty run in O(1).
+// Push runs in amortized O(1), occasionally reallocating the backing array as
+// it grows. Pop, Peek, Len, Cap, and IsEmpty run in O(1). Methods that copy or
+// iterate over every element, such as All, Clone, and Slice, run in O(n).
+//
+// The top of the stack is the most recently pushed element. [Stack.All],
+// [Stack.Slice], and [Stack.PopN] report elements from top to bottom, the order
+// in which repeated [Stack.Pop] calls would remove them.
 //
 // The zero value of Stack[T] is usable as an empty stack. A nil *Stack[T]
-// behaves as an empty stack for every read-only method and for empty-removal
-// methods such as [Stack.Pop] and [Stack.PopN], so the zero pointer value is
-// safe to query without first calling [New]. Methods that need to store or
-// resize data ([Stack.Push], [Stack.PushN], [Stack.Grow], [Stack.Clear],
-// [Stack.Reset], [Stack.Shrink], [Stack.Clip]) require a non-nil receiver and
-// panic on a nil one; see each method's documentation.
+// behaves as an empty stack for every read-only method and for removal methods
+// such as [Stack.Pop], so the zero pointer value is safe to query without first
+// calling [New]. Methods that store, clear, reset, or resize data
+// ([Stack.Push], [Stack.PushN], [Stack.Clear], [Stack.Reset], [Stack.Shrink],
+// [Stack.Clip], [Stack.Grow]) require a non-nil receiver and panic on a nil
+// one; see each method's documentation.
 //
 // A Stack is not safe for concurrent use: it performs no internal locking.
 // Callers that share a stack across goroutines must provide their own
@@ -31,8 +37,10 @@ import (
 // most recently pushed element.
 //
 // The zero value is a valid empty stack. A nil *Stack[T] is treated as a valid
-// empty stack by read-only and empty-removal methods, but methods that store or
-// resize data require a non-nil receiver.
+// empty stack by read-only and removal methods, but methods that store, clear,
+// reset, or resize data require a non-nil receiver. Copying a Stack value
+// shares its storage with the original; use [Stack.Clone] for an independent
+// copy.
 //
 // Stack is not safe for concurrent use.
 type Stack[T any] struct {
@@ -81,9 +89,10 @@ func (s *Stack[T]) IsEmpty() bool {
 	return s == nil || len(s.data) == 0
 }
 
-// Peek returns the top element without removing it. The boolean result is false
-// when the stack is empty, in which case the returned value is the zero value
-// of T. A nil receiver is treated as empty and returns (zero, false).
+// Peek returns the top element without removing it. The boolean result is
+// false when the stack is empty, in which case the returned value is the zero
+// value of T. It runs in O(1). A nil receiver is treated as empty and returns
+// (zero, false).
 func (s *Stack[T]) Peek() (T, bool) {
 	if s == nil || len(s.data) == 0 {
 		var zero T
@@ -96,16 +105,17 @@ func (s *Stack[T]) Peek() (T, bool) {
 // All returns an iterator over the stack's elements from top to bottom (LIFO
 // order), without consuming them; the stack is left unchanged. The returned
 // [iter.Seq] is a Go 1.23 range-over-func iterator, so it can be used directly
-// in a range loop. Breaking out of the loop early stops iteration cleanly. A nil
-// receiver is treated as empty and yields no elements.
+// in a range loop. Breaking out of the loop early stops iteration cleanly.
+// Mutating the stack during iteration is undefined behavior. A nil receiver is
+// treated as empty and yields nothing.
 func (s *Stack[T]) All() iter.Seq[T] {
 	return func(yield func(T) bool) {
 		if s == nil {
 			return
 		}
 
-		for i := len(s.data) - 1; i >= 0; i-- {
-			if !yield(s.data[i]) {
+		for _, v := range slices.Backward(s.data) {
+			if !yield(v) {
 				return
 			}
 		}
@@ -113,28 +123,29 @@ func (s *Stack[T]) All() iter.Seq[T] {
 }
 
 // Clone returns an independent shallow copy of the stack. The two stacks share
-// no backing array, so mutating one (pushing, popping, clearing) does not affect
-// the other. Elements are copied as-is: if T is a pointer or contains
-// references, the pointed-to data is shared between the copies. Runs in O(n).
+// no backing array, so mutating one does not affect the other. Elements are
+// copied as-is: if T is a pointer or contains references, the pointed-to data
+// is shared between the copies. The clone's capacity equals its length. It
+// runs in O(n).
 //
-// A nil receiver, treated everywhere as an empty stack, clones to a new, usable
-// empty stack (never nil), so the result can be pushed to without a further
-// [New] call.
+// A nil receiver clones to a new, usable empty stack.
 func (s *Stack[T]) Clone() *Stack[T] {
 	if s == nil {
 		return New[T]()
 	}
 
-	return &Stack[T]{
-		data: slices.Clone(s.data),
+	c := &Stack[T]{
+		data: make([]T, len(s.data)),
 	}
+	copy(c.data, s.data)
+
+	return c
 }
 
-// Slice returns a copy of the stack's elements from top to bottom (LIFO), the
-// same order [Stack.All] yields. The returned slice is independent of the stack:
-// they share no backing array, so callers may modify it freely without affecting
-// the stack, and vice versa. An empty stack returns nil; a nil receiver is
-// treated as empty and likewise returns nil. Runs in O(n).
+// Slice returns a copy of the stack's elements from top to bottom (LIFO
+// order), the same order [Stack.All] yields. The returned slice is independent
+// of the stack, so callers may modify it freely. An empty stack returns nil; a
+// nil receiver is treated as empty and likewise returns nil. It runs in O(n).
 func (s *Stack[T]) Slice() []T {
 	if s == nil || len(s.data) == 0 {
 		return nil
@@ -146,8 +157,8 @@ func (s *Stack[T]) Slice() []T {
 	return out
 }
 
-// Push adds v to the top of the stack. It runs in amortized O(1) time; the
-// backing array may be reallocated to grow.
+// Push adds v to the top of the stack. It runs in amortized O(1); the backing
+// array may be reallocated to grow.
 //
 // Push requires a non-nil receiver and panics on a nil one: it must store the
 // element somewhere. The zero value is usable, so [New] is optional.
@@ -158,8 +169,8 @@ func (s *Stack[T]) Push(v T) {
 
 // PushN adds vs to the top of the stack in argument order, so the last argument
 // ends up on top. It grows the backing array at most once, making it cheaper
-// than repeated [Stack.Push] calls. With no arguments it is a no-op. Runs in
-// amortized O(k) for k elements.
+// than repeated [Stack.Push] calls. With no arguments it is a no-op. It runs in
+// amortized O(k), where k is the number of elements pushed.
 //
 // PushN requires a non-nil receiver and panics on a nil one, even when called
 // with no arguments: it must store the elements somewhere. The zero value is
@@ -169,11 +180,11 @@ func (s *Stack[T]) PushN(vs ...T) {
 	s.data = append(s.data, vs...)
 }
 
-// Pop removes and returns the top element. The boolean result is false when the
-// stack is empty, in which case the returned value is the zero value of T. The
-// vacated slot is zeroed so it no longer retains a reference to the popped
-// element. It runs in O(1) time. A nil receiver is treated as empty: there is
-// nothing to remove, so it returns (zero, false) without panicking.
+// Pop removes and returns the top element. The boolean result is false when
+// the stack is empty, in which case the returned value is the zero value of T.
+// The vacated slot is zeroed so it no longer retains a reference to the
+// removed element. It runs in O(1). A nil receiver is treated as empty and
+// returns (zero, false).
 func (s *Stack[T]) Pop() (T, bool) {
 	if s == nil || len(s.data) == 0 {
 		var zero T
@@ -190,12 +201,12 @@ func (s *Stack[T]) Pop() (T, bool) {
 	return v, true
 }
 
-// PopN removes and returns up to n elements from the top of the stack in pop
+// PopN removes and returns up to n elements from the top of the stack in LIFO
 // order, so the first element of the result is the former top. If n is greater
 // than Len, it drains the stack. If n is non-positive, or the stack is empty or
 // nil, PopN returns nil. The vacated slots are zeroed so they no longer retain
-// references, and the capacity is preserved. Runs in O(k), where k is the
-// number of elements returned.
+// references, and the capacity is preserved. It runs in O(k), where k is the
+// number of elements returned, and allocates the result slice once.
 func (s *Stack[T]) PopN(n int) []T {
 	if s == nil || n <= 0 || len(s.data) == 0 {
 		return nil
@@ -216,7 +227,8 @@ func (s *Stack[T]) PopN(n int) []T {
 
 // Clear removes all elements and releases the backing array, so its memory
 // becomes eligible for garbage collection. After Clear, Cap reports 0. To empty
-// the stack while keeping its capacity for reuse, use [Stack.Reset] instead.
+// the stack while keeping its capacity for reuse, use [Stack.Reset] instead. It
+// runs in O(1).
 //
 // Clear requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Clear() {
@@ -226,7 +238,8 @@ func (s *Stack[T]) Clear() {
 
 // Reset removes all elements but keeps the backing array for reuse, so Cap is
 // preserved. The elements are zeroed so the array no longer retains references
-// to them. To also release the backing array, use [Stack.Clear] instead.
+// to them. To also release the backing array, use [Stack.Clear] instead. It
+// runs in O(n).
 //
 // Reset requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Reset() {
@@ -253,9 +266,9 @@ func (s *Stack[T]) Shrink() {
 
 // Clip reduces the reported capacity to the current length without copying, by
 // reslicing the backing array (see [slices.Clip]). It runs in O(1) and does not
-// allocate. Because the backing array is retained, the unused tail memory is not
-// returned to the garbage collector until a later growth reallocates. For an
-// immediate, copying reclaim, use [Stack.Shrink].
+// allocate. Because the backing array is retained, the unused tail memory is
+// not returned to the garbage collector until a later growth reallocates. For
+// an immediate, copying reclaim, use [Stack.Shrink].
 //
 // Clip requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Clip() {
@@ -263,19 +276,15 @@ func (s *Stack[T]) Clip() {
 	s.data = slices.Clip(s.data)
 }
 
-// Grow ensures the stack has spare capacity for at least n more elements without
-// reallocating during subsequent pushes, growing the backing array if needed. It
-// is the counterpart of [Stack.Shrink]. Grow runs in O(n) when it reallocates and
-// is a no-op when n is non-positive or the capacity is already sufficient. It
-// panics if the new capacity overflows, the same condition as [slices.Grow].
+// Grow ensures the stack has spare capacity for at least n more elements
+// without reallocating during subsequent pushes, growing the backing array if
+// needed. It is the counterpart of [Stack.Shrink]. Grow runs in O(n) when it
+// reallocates and is a no-op when n is non-positive or the capacity is already
+// sufficient. It panics if the new capacity overflows, the same condition as
+// [slices.Grow].
 //
 // Grow requires a non-nil receiver and panics on a nil one.
 func (s *Stack[T]) Grow(n int) {
 	shared.MustNotNil(s, "stack", "Grow")
-
-	if n <= 0 {
-		return
-	}
-
-	s.data = slices.Grow(s.data, n)
+	s.data = shared.GrowSlice(s.data, n)
 }

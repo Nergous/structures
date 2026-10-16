@@ -1,26 +1,15 @@
 package queue
 
 import (
-	"strings"
+	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"github.com/Nergous/structures/internal/shared/sharedtest"
 )
 
-func equalInts(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
-}
-
+// assertNewEmpty fails the test unless New returns an empty queue with no
+// preallocated capacity for element type T.
 func assertNewEmpty[T any](t *testing.T) {
 	t.Helper()
 
@@ -30,9 +19,46 @@ func assertNewEmpty[T any](t *testing.T) {
 		t.Errorf("Len() = %d, want 0", got)
 	}
 
-	if got := cap(q.buf.Data()); got != 0 {
-		t.Errorf("cap(data) = %d, want 0", got)
+	if got := q.Cap(); got != 0 {
+		t.Errorf("Cap() = %d, want 0", got)
 	}
+}
+
+// assertTailZeroed fails the test unless every slot of the backing array
+// past Len holds the zero value of T. The live elements of q must start at
+// index 0 of the backing array.
+func assertTailZeroed[T comparable](t *testing.T, q *Queue[T]) {
+	t.Helper()
+
+	var zero T
+	n := q.Len()
+	for i, v := range q.buf.Data()[n:] {
+		if v != zero {
+			t.Errorf("data[%d] = %v, want zero value", n+i, v)
+		}
+	}
+}
+
+// fill returns a queue holding the elements 0..n-1 from front to back.
+func fill(n int) *Queue[int] {
+	q := New[int]()
+	for i := range n {
+		q.Push(i)
+	}
+
+	return q
+}
+
+// wrapped returns a full queue of capacity 4 holding 3, 4, 5, 6 from front to
+// back, whose live elements wrap around the end of the backing array.
+func wrapped() *Queue[int] {
+	q := NewWithCap[int](4)
+	q.PushN(1, 2, 3, 4)
+	q.Pop()
+	q.Pop()
+	q.PushN(5, 6)
+
+	return q
 }
 
 func TestQueue_New(t *testing.T) {
@@ -43,218 +69,66 @@ func TestQueue_New(t *testing.T) {
 
 func TestQueue_NewWithCap(t *testing.T) {
 	tests := []struct {
-		name    string
-		cap     int
-		wantCap int
+		name string
+		n    int
+		want int
 	}{
 		{
-			name:    "zero cap",
-			cap:     0,
-			wantCap: 0,
+			name: "negative clamps to zero",
+			n:    -1,
+			want: 0,
 		},
 		{
-			name:    "one",
-			cap:     1,
-			wantCap: 1,
+			name: "zero",
+			n:    0,
+			want: 0,
 		},
 		{
-			name:    "ten",
-			cap:     10,
-			wantCap: 10,
-		},
-		// A negative argument must be clamped to 0 instead of panicking in
-		// make([]T, 0, n) (mirrors stack.NewWithCap).
-		{
-			name:    "negative clamps to zero",
-			cap:     -1,
-			wantCap: 0,
+			name: "one",
+			n:    1,
+			want: 1,
 		},
 		{
-			name:    "large negative clamps to zero",
-			cap:     -1000,
-			wantCap: 0,
+			name: "ten",
+			n:    10,
+			want: 10,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := NewWithCap[int](tt.cap)
+			q := NewWithCap[int](tt.n)
 
 			if got := q.Len(); got != 0 {
 				t.Errorf("Len() = %d, want 0", got)
 			}
 
-			if got := cap(q.buf.Data()); got != tt.wantCap {
-				t.Errorf("cap(data) = %d, want %d", got, tt.wantCap)
+			if got := q.Cap(); got != tt.want {
+				t.Errorf("Cap() = %d, want %d", got, tt.want)
 			}
 
-			// the queue must be usable regardless of the requested capacity.
 			q.Push(1)
 
 			if got, ok := q.Pop(); !ok || got != 1 {
-				t.Errorf("Pop() = (%d, %v), want (1, true)", got, ok)
+				t.Errorf("Pop() after Push(1) = (%d, %v), want (1, true)",
+					got, ok)
 			}
 		})
 	}
 }
 
-func TestQueue_PushPop(t *testing.T) {
-	tests := []struct {
-		name string
-		push []int
-		want []int
-	}{
-		{
-			name: "empty",
-			push: nil,
-			want: nil,
-		},
-		{
-			name: "single element",
-			push: []int{42},
-			want: []int{42},
-		},
-		{
-			name: "fifo order",
-			push: []int{1, 2, 3},
-			want: []int{1, 2, 3},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			q := New[int]()
-			for _, v := range tt.push {
-				q.Push(v)
-			}
-
-			for i, want := range tt.want {
-				got, ok := q.Pop()
-				if !ok {
-					t.Fatalf("Pop() #%d: ok = false, want true", i)
-				}
-
-				if got != want {
-					t.Errorf("Pop() #%d = %d, want %d", i, got, want)
-				}
-			}
-
-			if got, ok := q.Pop(); ok {
-				t.Errorf("Pop() on empty: got %d, ok = true, want ok = false", got)
-			}
-		})
-	}
-}
-
-func TestQueue_PushPopInterleaved(t *testing.T) {
-	// FIFO order must hold even when pushes and pops are interleaved.
+func TestQueue_Len(t *testing.T) {
 	q := New[int]()
-	q.Push(1)
-	q.Push(2)
+	q.PushN(1, 2, 3)
 
-	if got, ok := q.Pop(); !ok || got != 1 {
-		t.Fatalf("Pop() = (%d, %v), want (1, true)", got, ok)
+	if got := q.Len(); got != 3 {
+		t.Errorf("Len() after PushN(1, 2, 3) = %d, want 3", got)
 	}
 
-	q.Push(3)
+	q.Pop()
 
-	for i, want := range []int{2, 3} {
-		got, ok := q.Pop()
-		if !ok {
-			t.Fatalf("Pop() #%d: ok = false, want true", i)
-		}
-
-		if got != want {
-			t.Errorf("Pop() #%d = %d, want %d", i, got, want)
-		}
-	}
-
-	if got, ok := q.Pop(); ok {
-		t.Errorf("Pop() on empty: got %d, ok = true, want ok = false", got)
-	}
-}
-
-func TestQueue_PopReleasesReference(t *testing.T) {
-	// Pop must zero the vacated slot so the backing array no longer retains a
-	// reference to the popped element (otherwise it leaks until reallocation).
-	q := New[*int]()
-	a := 1
-	q.Push(&a)
-
-	// alias the same backing array so we can inspect the slot after Pop slices it off.
-	backing := q.buf.Data()[:1]
-
-	if _, ok := q.Pop(); !ok {
-		t.Fatalf("Pop() ok = false, want true")
-	}
-
-	if got := backing[0]; got != nil {
-		t.Errorf("data[0] = %p, want nil (Pop must release the reference)", got)
-	}
-}
-
-func TestQueue_Peek(t *testing.T) {
-	t.Run("empty returns zero value and false", func(t *testing.T) {
-		q := New[int]()
-		got, ok := q.Peek()
-		if ok {
-			t.Errorf("Peek() ok = true, want false")
-		}
-
-		if got != 0 {
-			t.Errorf("Peek() = %d, want 0 (zero value)", got)
-		}
-	})
-
-	t.Run("returns front without removing it", func(t *testing.T) {
-		q := New[int]()
-		q.Push(1)
-		q.Push(2)
-
-		got, ok := q.Peek()
-		if !ok {
-			t.Fatalf("Peek() ok = false, want true")
-		}
-
-		if got != 1 {
-			t.Errorf("Peek() = %d, want 1 (front of queue)", got)
-		}
-
-		if got := q.Len(); got != 2 {
-			t.Errorf("Len() after Peek() = %d, want 2 (Peek must not modify the queue)", got)
-		}
-	})
-}
-
-func TestQueue_IsEmpty(t *testing.T) {
-	tests := []struct {
-		name  string
-		pushN int
-		want  bool
-	}{
-		{
-			name:  "new queue is empty",
-			pushN: 0,
-			want:  true,
-		},
-		{
-			name:  "after push is not empty",
-			pushN: 1,
-			want:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			q := New[int]()
-			for i := 0; i < tt.pushN; i++ {
-				q.Push(i)
-			}
-
-			if got := q.IsEmpty(); got != tt.want {
-				t.Errorf("IsEmpty() = %v, want %v", got, tt.want)
-			}
-		})
+	if got := q.Len(); got != 2 {
+		t.Errorf("Len() after Pop() = %d, want 2", got)
 	}
 }
 
@@ -267,19 +141,7 @@ func TestQueue_Cap(t *testing.T) {
 		}
 	})
 
-	t.Run("reflects preallocated capacity", func(t *testing.T) {
-		q := NewWithCap[int](8)
-
-		if got := q.Cap(); got != 8 {
-			t.Errorf("Cap() = %d, want 8", got)
-		}
-
-		if got := q.Len(); got != 0 {
-			t.Errorf("Len() = %d, want 0", got)
-		}
-	})
-
-	t.Run("never less than len while growing", func(t *testing.T) {
+	t.Run("never less than Len while growing", func(t *testing.T) {
 		q := New[int]()
 		for i := range 100 {
 			q.Push(i)
@@ -289,14 +151,14 @@ func TestQueue_Cap(t *testing.T) {
 		}
 	})
 
-	t.Run("no realloc while pushing within preallocated cap", func(t *testing.T) {
+	t.Run("no reallocation within preallocated capacity", func(t *testing.T) {
 		q := NewWithCap[int](4)
 		for i := range 4 {
 			q.Push(i)
 		}
 
 		if got := q.Cap(); got != 4 {
-			t.Errorf("Cap() = %d, want 4 (no realloc expected within cap)", got)
+			t.Errorf("Cap() after 4 Push() = %d, want 4", got)
 		}
 	})
 
@@ -307,334 +169,108 @@ func TestQueue_Cap(t *testing.T) {
 		q.Pop()
 
 		if got := q.Cap(); got != 4 {
-			t.Errorf("Cap() after two Pop() calls = %d, want 4", got)
+			t.Errorf("Cap() after Pop(), Pop() = %d, want 4", got)
 		}
 	})
 
-	t.Run("reuses front slots after pop without growing", func(t *testing.T) {
+	t.Run("reuses freed slots without growing", func(t *testing.T) {
 		q := NewWithCap[int](4)
 		q.PushN(1, 2, 3, 4)
 		q.Pop()
 		q.Pop()
-
 		q.Push(5)
 		q.Push(6)
 
 		if got := q.Cap(); got != 4 {
-			t.Errorf("Cap() after wraparound pushes = %d, want 4", got)
+			t.Errorf("Cap() after refilling freed slots = %d, want 4", got)
 		}
 
-		if got, want := q.Slice(), []int{3, 4, 5, 6}; !equalInts(got, want) {
-			t.Errorf("Slice() after wraparound pushes = %v, want %v", got, want)
+		if got, want := q.Slice(), []int{3, 4, 5, 6}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after refilling freed slots = %v, want %v",
+				got, want)
 		}
 	})
 }
 
-func TestQueue_Clear(t *testing.T) {
-	q := NewWithCap[int](8)
-	for i := range 5 {
-		q.Push(i)
-	}
-
-	q.Clear()
-
-	if got := q.Len(); got != 0 {
-		t.Errorf("Len() after Clear() = %d, want 0", got)
-	}
+func TestQueue_IsEmpty(t *testing.T) {
+	q := New[int]()
 
 	if got := q.IsEmpty(); !got {
-		t.Errorf("IsEmpty() after Clear() = %v, want true", got)
+		t.Errorf("IsEmpty() on empty = %v, want true", got)
 	}
 
-	if got := q.Cap(); got != 0 {
-		t.Errorf("Cap() after Clear() = %d, want 0 (backing array released)", got)
+	q.Push(1)
+
+	if got := q.IsEmpty(); got {
+		t.Errorf("IsEmpty() after Push(1) = %v, want false", got)
 	}
 
-	if got, ok := q.Pop(); ok {
-		t.Errorf("Pop() after Clear(): got %d, ok = true, want ok = false", got)
-	}
-
-	// queue stays usable after Clear
-	q.Push(99)
-
-	if got, ok := q.Pop(); !ok || got != 99 {
-		t.Errorf("Pop() after reuse = (%d, %v), want (99, true)", got, ok)
-	}
-}
-
-func TestQueue_Reset(t *testing.T) {
-	t.Run("empties queue but preserves capacity", func(t *testing.T) {
-		q := New[int]()
-		for i := range 10 {
-			q.Push(i)
-		}
-		capBefore := q.Cap()
-
-		q.Reset()
-
-		if got := q.Len(); got != 0 {
-			t.Errorf("Len() after Reset() = %d, want 0", got)
-		}
-
-		if got := q.IsEmpty(); !got {
-			t.Errorf("IsEmpty() after Reset() = %v, want true", got)
-		}
-
-		if got := q.Cap(); got != capBefore {
-			t.Errorf("Cap() after Reset() = %d, want %d (capacity must be preserved)", got, capBefore)
-		}
-	})
-
-	t.Run("zeroes backing array to release references", func(t *testing.T) {
-		q := New[*int]()
-		a, b, c := 1, 2, 3
-		q.Push(&a)
-		q.Push(&b)
-		q.Push(&c)
-
-		q.Reset()
-
-		// white-box: the array is retained, so inspect every slot up to cap.
-		full := q.buf.Data()[:cap(q.buf.Data())]
-		for i, got := range full {
-			if got != nil {
-				t.Errorf("data[%d] = %p, want nil (Reset must zero elements)", i, got)
-			}
-		}
-	})
-
-	t.Run("queue stays usable after Reset", func(t *testing.T) {
-		q := New[int]()
-		q.Push(1)
-		q.Reset()
-		q.Push(42)
-
-		if got, ok := q.Pop(); !ok || got != 42 {
-			t.Errorf("Pop() after reuse = (%d, %v), want (42, true)", got, ok)
-		}
-
-		if got, ok := q.Pop(); ok {
-			t.Errorf("Pop() on emptied queue: got %d, ok = true, want ok = false", got)
-		}
-	})
-
-	t.Run("preserves full capacity after pops", func(t *testing.T) {
-		q := NewWithCap[int](8)
-		q.PushN(1, 2, 3, 4, 5)
-		q.Pop()
-		q.Pop()
-
-		q.Reset()
-
-		if got := q.Cap(); got != 8 {
-			t.Errorf("Cap() after Pop(), Pop(), Reset() = %d, want 8", got)
-		}
-	})
-}
-
-func TestQueue_Wraparound(t *testing.T) {
-	q := NewWithCap[int](5)
-	q.PushN(1, 2, 3, 4, 5)
-
-	for i, want := range []int{1, 2, 3} {
-		if got, ok := q.Pop(); !ok || got != want {
-			t.Fatalf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
-		}
-	}
-
-	q.PushN(6, 7, 8)
-
-	if got := q.Cap(); got != 5 {
-		t.Errorf("Cap() after wraparound = %d, want 5", got)
-	}
-
-	if got, want := q.Slice(), []int{4, 5, 6, 7, 8}; !equalInts(got, want) {
-		t.Errorf("Slice() across wraparound = %v, want %v", got, want)
-	}
-
-	var got []int
-	for v := range q.All() {
-		got = append(got, v)
-	}
-
-	if want := []int{4, 5, 6, 7, 8}; !equalInts(got, want) {
-		t.Errorf("All() across wraparound = %v, want %v", got, want)
-	}
-
-	c := q.Clone()
 	q.Pop()
-	q.Push(9)
 
-	if got, want := c.Slice(), []int{4, 5, 6, 7, 8}; !equalInts(got, want) {
-		t.Errorf("Clone().Slice() across wraparound = %v, want %v", got, want)
+	if got := q.IsEmpty(); !got {
+		t.Errorf("IsEmpty() after Pop() = %v, want true", got)
 	}
 }
 
-func TestQueue_PushN(t *testing.T) {
-	t.Run("pushes all in order, last argument at the back", func(t *testing.T) {
+func TestQueue_Peek(t *testing.T) {
+	t.Run("empty returns zero value and false", func(t *testing.T) {
 		q := New[int]()
-		q.PushN(1, 2, 3)
 
-		// FIFO: they come back out in the order they went in.
-		for i, want := range []int{1, 2, 3} {
-			if got, ok := q.Pop(); !ok || got != want {
-				t.Errorf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
-			}
+		if got, ok := q.Peek(); ok || got != 0 {
+			t.Errorf("Peek() on empty = (%d, %v), want (0, false)", got, ok)
 		}
 	})
 
-	t.Run("no arguments is a no-op", func(t *testing.T) {
-		q := New[int]()
-		q.PushN()
-
-		if got := q.Len(); got != 0 {
-			t.Errorf("Len() after PushN() = %d, want 0", got)
-		}
-	})
-
-	t.Run("appends onto existing elements", func(t *testing.T) {
-		q := New[int]()
-		q.Push(1)
-		q.PushN(2, 3)
-
-		if got, want := q.Slice(), []int{1, 2, 3}; !equalInts(got, want) {
-			t.Errorf("Slice() = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("grows the backing array at most once", func(t *testing.T) {
-		q := New[int]()
-		q.PushN(1, 2, 3, 4, 5, 6, 7, 8)
-
-		// A single bulk append should land on a capacity that holds all 8
-		// without a second growth step.
-		if got := q.Cap(); got < 8 {
-			t.Errorf("Cap() after PushN(1, ..., 8) = %d, want >= 8", got)
-		}
-	})
-}
-
-func TestQueue_PopN(t *testing.T) {
-	t.Run("pops up to n elements in fifo order", func(t *testing.T) {
-		q := New[int]()
-		q.PushN(1, 2, 3, 4)
-
-		if got, want := q.PopN(3), []int{1, 2, 3}; !equalInts(got, want) {
-			t.Errorf("PopN(3) = %v, want %v", got, want)
-		}
-
-		if got, want := q.Slice(), []int{4}; !equalInts(got, want) {
-			t.Errorf("Slice() after PopN(3) = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("larger than len drains queue", func(t *testing.T) {
-		q := NewWithCap[int](4)
-		q.PushN(1, 2)
-
-		if got, want := q.PopN(10), []int{1, 2}; !equalInts(got, want) {
-			t.Errorf("PopN(10) = %v, want %v", got, want)
-		}
-
-		if got := q.Len(); got != 0 {
-			t.Errorf("Len() after PopN(10) = %d, want 0", got)
-		}
-
-		if got := q.Cap(); got != 4 {
-			t.Errorf("Cap() after PopN(10) = %d, want 4", got)
-		}
-	})
-
-	t.Run("non-positive n returns nil", func(t *testing.T) {
+	t.Run("returns front without removing it", func(t *testing.T) {
 		q := New[int]()
 		q.PushN(1, 2)
 
-		if got := q.PopN(0); got != nil {
-			t.Errorf("PopN(0) = %v, want nil", got)
-		}
-
-		if got := q.PopN(-1); got != nil {
-			t.Errorf("PopN(-1) = %v, want nil", got)
+		if got, ok := q.Peek(); !ok || got != 1 {
+			t.Errorf("Peek() = (%d, %v), want (1, true)", got, ok)
 		}
 
 		if got := q.Len(); got != 2 {
-			t.Errorf("Len() after PopN(0)/PopN(-1) = %d, want 2", got)
-		}
-	})
-
-	t.Run("works across wraparound", func(t *testing.T) {
-		q := NewWithCap[int](5)
-		q.PushN(1, 2, 3, 4, 5)
-		q.Pop()
-		q.Pop()
-		q.PushN(6, 7)
-
-		if got, want := q.PopN(4), []int{3, 4, 5, 6}; !equalInts(got, want) {
-			t.Errorf("PopN(4) across wraparound = %v, want %v", got, want)
-		}
-
-		if got, want := q.Slice(), []int{7}; !equalInts(got, want) {
-			t.Errorf("Slice() after PopN(4) = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("nil receiver returns nil", func(t *testing.T) {
-		var q *Queue[int]
-
-		if got := q.PopN(3); got != nil {
-			t.Errorf("nil.PopN(3) = %v, want nil", got)
+			t.Errorf("Len() after Peek() = %d, want 2", got)
 		}
 	})
 }
 
 func TestQueue_All(t *testing.T) {
-	collect := func(q *Queue[int]) []int {
-		var out []int
-		for v := range q.All() {
-			out = append(out, v)
-		}
-
-		return out
-	}
-
-	t.Run("yields front to back (fifo)", func(t *testing.T) {
+	t.Run("yields front to back", func(t *testing.T) {
 		q := New[int]()
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 
-		if got, want := collect(q), []int{1, 2, 3}; !equalInts(got, want) {
+		got := slices.Collect(q.All())
+		if want := []int{1, 2, 3}; !slices.Equal(got, want) {
 			t.Errorf("All() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("yields front to back across wraparound", func(t *testing.T) {
+		q := wrapped()
+
+		got := slices.Collect(q.All())
+		if want := []int{3, 4, 5, 6}; !slices.Equal(got, want) {
+			t.Errorf("All() across wraparound = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("empty queue yields nothing", func(t *testing.T) {
 		q := New[int]()
 
-		if got := collect(q); len(got) != 0 {
+		if got := slices.Collect(q.All()); len(got) != 0 {
 			t.Errorf("All() on empty = %v, want no elements", got)
 		}
 	})
 
-	t.Run("yields front to back after some Pops", func(t *testing.T) {
+	t.Run("does not consume", func(t *testing.T) {
 		q := New[int]()
-		q.PushN(1, 2, 3, 4)
-		q.Pop() // drop the 1; front advances
+		q.PushN(1, 2)
 
-		if got, want := collect(q), []int{2, 3, 4}; !equalInts(got, want) {
-			t.Errorf("All() after Pop() = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("does not consume the queue", func(t *testing.T) {
-		q := New[int]()
-		q.Push(1)
-		q.Push(2)
-
-		_ = collect(q)
+		_ = slices.Collect(q.All())
 
 		if got := q.Len(); got != 2 {
-			t.Errorf("Len() after All() = %d, want 2 (iteration must not consume)", got)
+			t.Errorf("Len() after All() = %d, want 2", got)
 		}
 
 		if got, ok := q.Pop(); !ok || got != 1 {
@@ -642,11 +278,9 @@ func TestQueue_All(t *testing.T) {
 		}
 	})
 
-	t.Run("break stops iteration early and leaves queue intact", func(t *testing.T) {
+	t.Run("break stops iteration early", func(t *testing.T) {
 		q := New[int]()
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 
 		var got []int
 		for v := range q.All() {
@@ -656,7 +290,7 @@ func TestQueue_All(t *testing.T) {
 			}
 		}
 
-		if want := []int{1, 2}; !equalInts(got, want) {
+		if want := []int{1, 2}; !slices.Equal(got, want) {
 			t.Errorf("All() with early break = %v, want %v", got, want)
 		}
 
@@ -664,51 +298,138 @@ func TestQueue_All(t *testing.T) {
 			t.Errorf("Len() after break = %d, want 3", got)
 		}
 	})
+
+	t.Run("break across wraparound", func(t *testing.T) {
+		q := wrapped()
+
+		var got []int
+		for v := range q.All() {
+			got = append(got, v)
+			if len(got) == 3 {
+				break
+			}
+		}
+
+		if want := []int{3, 4, 5}; !slices.Equal(got, want) {
+			t.Errorf("All() with early break = %v, want %v", got, want)
+		}
+	})
+}
+
+func TestQueue_Clone(t *testing.T) {
+	t.Run("copies all elements in order", func(t *testing.T) {
+		q := New[int]()
+		q.PushN(1, 2, 3)
+
+		c := q.Clone()
+
+		if got, want := c.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() of clone = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("copies across wraparound", func(t *testing.T) {
+		q := wrapped()
+
+		c := q.Clone()
+
+		want := []int{3, 4, 5, 6}
+		if got := c.Slice(); !slices.Equal(got, want) {
+			t.Errorf("Slice() of clone across wraparound = %v, want %v",
+				got, want)
+		}
+	})
+
+	t.Run("capacity equals length", func(t *testing.T) {
+		q := NewWithCap[int](64)
+		q.PushN(1, 2, 3, 4, 5)
+
+		c := q.Clone()
+
+		if got, want := c.Cap(), c.Len(); got != want {
+			t.Errorf("Cap() of clone = %d, want Len() = %d", got, want)
+		}
+	})
+
+	t.Run("is independent of the original", func(t *testing.T) {
+		q := New[int]()
+		q.PushN(1, 2)
+
+		c := q.Clone()
+		c.Push(99)
+		q.Pop()
+
+		if got, want := c.Slice(), []int{1, 2, 99}; !slices.Equal(got, want) {
+			t.Errorf("Slice() of clone = %v, want %v", got, want)
+		}
+
+		if got, want := q.Slice(), []int{2}; !slices.Equal(got, want) {
+			t.Errorf("Slice() of original = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("clone of empty queue is empty and usable", func(t *testing.T) {
+		q := New[int]()
+
+		c := q.Clone()
+
+		if got := c.Len(); got != 0 {
+			t.Errorf("Len() of clone = %d, want 0", got)
+		}
+
+		c.Push(1)
+
+		if got, ok := c.Pop(); !ok || got != 1 {
+			t.Errorf("Pop() of clone after Push(1) = (%d, %v), "+
+				"want (1, true)", got, ok)
+		}
+	})
 }
 
 func TestQueue_Slice(t *testing.T) {
-	t.Run("returns elements front to back (fifo)", func(t *testing.T) {
+	t.Run("returns elements front to back", func(t *testing.T) {
 		q := New[int]()
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 
-		if got, want := q.Slice(), []int{1, 2, 3}; !equalInts(got, want) {
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
 			t.Errorf("Slice() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("returns elements across wraparound", func(t *testing.T) {
+		q := wrapped()
+
+		if got, want := q.Slice(), []int{3, 4, 5, 6}; !slices.Equal(got, want) {
+			t.Errorf("Slice() across wraparound = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("returns an independent copy", func(t *testing.T) {
 		q := New[int]()
-		q.Push(1)
-		q.Push(2)
+		q.PushN(1, 2)
 
-		sl := q.Slice()
-		for i := range sl {
-			sl[i] = 999
+		out := q.Slice()
+		for i := range out {
+			out[i] = 999
 		}
 
-		// mutating the returned slice must not disturb the queue's contents.
-		for i, want := range []int{1, 2} {
-			if got, ok := q.Pop(); !ok || got != want {
-				t.Errorf("Pop() #%d after mutating Slice() = (%d, %v), want (%d, true)", i, got, ok, want)
-			}
+		if got, want := q.Slice(), []int{1, 2}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after mutating a copy = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("does not consume the queue", func(t *testing.T) {
+	t.Run("does not consume", func(t *testing.T) {
 		q := New[int]()
-		q.Push(1)
-		q.Push(2)
+		q.PushN(1, 2)
 
 		_ = q.Slice()
 
 		if got := q.Len(); got != 2 {
-			t.Errorf("Len() after Slice() = %d, want 2 (must not consume)", got)
+			t.Errorf("Len() after Slice() = %d, want 2", got)
 		}
 	})
 
-	t.Run("empty queue returns nil regardless of how it became empty", func(t *testing.T) {
+	t.Run("empty queue returns nil", func(t *testing.T) {
 		drained := NewWithCap[int](8)
 		drained.Push(1)
 		drained.Pop()
@@ -716,6 +437,10 @@ func TestQueue_Slice(t *testing.T) {
 		reset := NewWithCap[int](8)
 		reset.Push(1)
 		reset.Reset()
+
+		cleared := NewWithCap[int](8)
+		cleared.Push(1)
+		cleared.Clear()
 
 		tests := []struct {
 			name string
@@ -737,6 +462,10 @@ func TestQueue_Slice(t *testing.T) {
 				name: "after Reset",
 				q:    reset,
 			},
+			{
+				name: "after Clear",
+				q:    cleared,
+			},
 		}
 
 		for _, tt := range tests {
@@ -749,148 +478,387 @@ func TestQueue_Slice(t *testing.T) {
 	})
 }
 
-func TestQueue_Clone(t *testing.T) {
-	t.Run("copies all elements in order", func(t *testing.T) {
+func TestQueue_Push(t *testing.T) {
+	t.Run("appends to the back", func(t *testing.T) {
 		q := New[int]()
 		q.Push(1)
 		q.Push(2)
 		q.Push(3)
 
-		c := q.Clone()
-
-		if got, want := c.Slice(), []int{1, 2, 3}; !equalInts(got, want) {
-			t.Errorf("Clone().Slice() = %v, want %v", got, want)
-		}
-
-		if got := c.Len(); got != 3 {
-			t.Errorf("Clone().Len() = %d, want 3", got)
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Push() = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("is independent of the original", func(t *testing.T) {
-		q := New[int]()
-		q.Push(1)
-		q.Push(2)
+	t.Run("grows past preallocated capacity", func(t *testing.T) {
+		q := NewWithCap[int](2)
+		q.PushN(1, 2)
 
-		c := q.Clone()
-		c.Push(99) // mutating the clone...
-		q.Pop()    // ...and the original...
+		q.Push(3)
 
-		// ...must not affect each other
-		if got := c.Len(); got != 3 {
-			t.Errorf("clone Len() = %d, want 3 (independent of original)", got)
+		if got := q.Cap(); got < 3 {
+			t.Errorf("Cap() after Push(3) = %d, want >= 3", got)
 		}
 
-		if got := q.Len(); got != 1 {
-			t.Errorf("original Len() = %d, want 1 (independent of clone)", got)
-		}
-	})
-
-	t.Run("clone of empty queue is empty and usable", func(t *testing.T) {
-		q := New[int]()
-
-		c := q.Clone()
-
-		if got := c.Len(); got != 0 {
-			t.Errorf("Clone().Len() = %d, want 0", got)
-		}
-
-		c.Push(1)
-
-		if got, ok := c.Pop(); !ok || got != 1 {
-			t.Errorf("Pop() after push on cloned empty = (%d, %v), want (1, true)", got, ok)
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Push(3) = %v, want %v", got, want)
 		}
 	})
 }
 
-func TestQueue_Grow(t *testing.T) {
-	t.Run("reserves capacity without changing length or contents", func(t *testing.T) {
+func TestQueue_PushN(t *testing.T) {
+	t.Run("pushes in argument order, last at the back", func(t *testing.T) {
 		q := New[int]()
-		q.Push(1)
-		q.Push(2)
+		q.PushN(1, 2, 3)
 
-		q.Grow(100)
-
-		if got := q.Cap(); got < 102 {
-			t.Errorf("Cap() after Grow(100) = %d, want >= 102", got)
-		}
-
-		if got := q.Len(); got != 2 {
-			t.Errorf("Len() after Grow(100) = %d, want 2", got)
-		}
-
-		if got, want := q.Slice(), []int{1, 2}; !equalInts(got, want) {
-			t.Errorf("Slice() after Grow(100) = %v, want %v", got, want)
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after PushN(1, 2, 3) = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("no reallocation while pushing within grown capacity", func(t *testing.T) {
+	t.Run("no arguments is a no-op", func(t *testing.T) {
 		q := New[int]()
-		q.Grow(8)
-		capAfterGrow := q.Cap()
+		q.PushN()
 
-		for i := range 8 {
-			q.Push(i)
-		}
-
-		if got := q.Cap(); got != capAfterGrow {
-			t.Errorf("Cap() after pushing within grown cap = %d, want %d (no realloc)", got, capAfterGrow)
+		if got := q.Len(); got != 0 {
+			t.Errorf("Len() after PushN() = %d, want 0", got)
 		}
 	})
 
-	t.Run("non-positive n is a no-op", func(t *testing.T) {
+	t.Run("appends onto existing elements", func(t *testing.T) {
 		q := New[int]()
 		q.Push(1)
+		q.PushN(2, 3)
+
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after PushN(2, 3) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("grows the backing buffer at most once", func(t *testing.T) {
+		q := New[int]()
+		q.PushN(1, 2, 3, 4, 5, 6, 7, 8)
+
+		if got := q.Cap(); got < 8 {
+			t.Errorf("Cap() after PushN(1, ..., 8) = %d, want >= 8", got)
+		}
+	})
+}
+
+func TestQueue_Pop(t *testing.T) {
+	tests := []struct {
+		name string
+		push []int
+		want []int
+	}{
+		{
+			name: "empty",
+			push: nil,
+			want: nil,
+		},
+		{
+			name: "single element",
+			push: []int{42},
+			want: []int{42},
+		},
+		{
+			name: "FIFO order",
+			push: []int{1, 2, 3},
+			want: []int{1, 2, 3},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := New[int]()
+			q.PushN(tt.push...)
+
+			for i, want := range tt.want {
+				if got, ok := q.Pop(); !ok || got != want {
+					t.Errorf("Pop() #%d = (%d, %v), want (%d, true)",
+						i, got, ok, want)
+				}
+			}
+
+			if got, ok := q.Pop(); ok || got != 0 {
+				t.Errorf("Pop() on empty = (%d, %v), want (0, false)",
+					got, ok)
+			}
+		})
+	}
+
+	t.Run("zeroes vacated slot", func(t *testing.T) {
+		q := New[*int]()
+		v := 1
+		q.Push(&v)
+		data := q.buf.Data()
+
+		if _, ok := q.Pop(); !ok {
+			t.Fatalf("Pop() ok = false, want true")
+		}
+
+		if got := data[0]; got != nil {
+			t.Errorf("data[0] after Pop() = %p, "+
+				"want nil (Pop must zero the slot)", got)
+		}
+	})
+}
+
+// TestQueue_PushPopInterleaved checks that FIFO order holds when pushes and
+// pops are interleaved.
+func TestQueue_PushPopInterleaved(t *testing.T) {
+	q := New[int]()
+	q.PushN(1, 2)
+
+	if got, ok := q.Pop(); !ok || got != 1 {
+		t.Fatalf("Pop() = (%d, %v), want (1, true)", got, ok)
+	}
+
+	q.Push(3)
+
+	for i, want := range []int{2, 3} {
+		if got, ok := q.Pop(); !ok || got != want {
+			t.Errorf("Pop() #%d = (%d, %v), want (%d, true)",
+				i, got, ok, want)
+		}
+	}
+
+	if got, ok := q.Pop(); ok || got != 0 {
+		t.Errorf("Pop() on empty = (%d, %v), want (0, false)", got, ok)
+	}
+}
+
+func TestQueue_PopN(t *testing.T) {
+	tests := []struct {
+		name string
+		push []int
+		n    int
+		want []int
+		left []int
+	}{
+		{
+			name: "one",
+			push: []int{1, 2, 3, 4, 5},
+			n:    1,
+			want: []int{1},
+			left: []int{2, 3, 4, 5},
+		},
+		{
+			name: "several in FIFO order",
+			push: []int{1, 2, 3, 4, 5},
+			n:    3,
+			want: []int{1, 2, 3},
+			left: []int{4, 5},
+		},
+		{
+			name: "exactly Len",
+			push: []int{1, 2, 3, 4, 5},
+			n:    5,
+			want: []int{1, 2, 3, 4, 5},
+			left: nil,
+		},
+		{
+			name: "more than Len drains",
+			push: []int{1, 2, 3, 4, 5},
+			n:    99,
+			want: []int{1, 2, 3, 4, 5},
+			left: nil,
+		},
+		{
+			name: "zero",
+			push: []int{1, 2, 3, 4, 5},
+			n:    0,
+			want: nil,
+			left: []int{1, 2, 3, 4, 5},
+		},
+		{
+			name: "negative",
+			push: []int{1, 2, 3, 4, 5},
+			n:    -3,
+			want: nil,
+			left: []int{1, 2, 3, 4, 5},
+		},
+		{
+			name: "empty",
+			push: nil,
+			n:    3,
+			want: nil,
+			left: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := New[int]()
+			q.PushN(tt.push...)
+			capBefore := q.Cap()
+
+			got := q.PopN(tt.n)
+
+			if !slices.Equal(got, tt.want) || (got == nil) != (tt.want == nil) {
+				t.Errorf("PopN(%d) = %v, want %v", tt.n, got, tt.want)
+			}
+
+			if got := q.Slice(); !slices.Equal(got, tt.left) {
+				t.Errorf("Slice() after PopN(%d) = %v, want %v",
+					tt.n, got, tt.left)
+			}
+
+			if got := q.Cap(); got != capBefore {
+				t.Errorf("Cap() after PopN(%d) = %d, want %d",
+					tt.n, got, capBefore)
+			}
+		})
+	}
+
+	t.Run("works across wraparound", func(t *testing.T) {
+		q := wrapped()
+
+		if got, want := q.PopN(3), []int{3, 4, 5}; !slices.Equal(got, want) {
+			t.Errorf("PopN(3) across wraparound = %v, want %v", got, want)
+		}
+
+		if got, want := q.Slice(), []int{6}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after PopN(3) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("zeroes vacated slots", func(t *testing.T) {
+		q := NewWithCap[*int](4)
+		a, b, c := 1, 2, 3
+		q.PushN(&a, &b, &c)
+
+		q.PopN(3)
+
+		assertTailZeroed(t, q)
+	})
+}
+
+func TestQueue_Clear(t *testing.T) {
+	q := NewWithCap[int](8)
+	q.PushN(0, 1, 2, 3, 4)
+
+	q.Clear()
+
+	if got := q.Len(); got != 0 {
+		t.Errorf("Len() after Clear() = %d, want 0", got)
+	}
+
+	if got := q.Cap(); got != 0 {
+		t.Errorf("Cap() after Clear() = %d, want 0", got)
+	}
+
+	if got, ok := q.Pop(); ok || got != 0 {
+		t.Errorf("Pop() after Clear() = (%d, %v), want (0, false)", got, ok)
+	}
+
+	q.Push(99)
+
+	if got, ok := q.Pop(); !ok || got != 99 {
+		t.Errorf("Pop() after Clear() and Push(99) = (%d, %v), "+
+			"want (99, true)", got, ok)
+	}
+}
+
+func TestQueue_Reset(t *testing.T) {
+	t.Run("Reset keeps capacity", func(t *testing.T) {
+		q := fill(10)
 		capBefore := q.Cap()
 
-		q.Grow(0)
-		q.Grow(-5)
+		q.Reset()
+
+		if got := q.Len(); got != 0 {
+			t.Errorf("Len() after Reset() = %d, want 0", got)
+		}
 
 		if got := q.Cap(); got != capBefore {
-			t.Errorf("Cap() after Grow(0)/Grow(-5) = %d, want %d (no-op)", got, capBefore)
+			t.Errorf("Cap() after Reset() = %d, want %d", got, capBefore)
+		}
+	})
+
+	t.Run("keeps full capacity after pops", func(t *testing.T) {
+		q := NewWithCap[int](8)
+		q.PushN(1, 2, 3, 4, 5)
+		q.Pop()
+		q.Pop()
+
+		q.Reset()
+
+		if got := q.Cap(); got != 8 {
+			t.Errorf("Cap() after Pop(), Pop(), Reset() = %d, want 8", got)
+		}
+	})
+
+	t.Run("zeroes backing array", func(t *testing.T) {
+		q := NewWithCap[*int](4)
+		a, b, c, e := 1, 2, 3, 4
+		q.PushN(&a, &b, &c)
+		q.Pop()
+		q.PushN(&e, &a)
+
+		q.Reset()
+
+		assertTailZeroed(t, q)
+	})
+
+	t.Run("usable after Reset", func(t *testing.T) {
+		q := fill(3)
+		q.Reset()
+
+		q.Push(42)
+
+		if got, ok := q.Pop(); !ok || got != 42 {
+			t.Errorf("Pop() after Reset() and Push(42) = (%d, %v), "+
+				"want (42, true)", got, ok)
+		}
+
+		if got, ok := q.Pop(); ok || got != 0 {
+			t.Errorf("Pop() on empty = (%d, %v), want (0, false)", got, ok)
 		}
 	})
 }
 
 func TestQueue_Shrink(t *testing.T) {
-	t.Run("reduces capacity to length and preserves contents", func(t *testing.T) {
+	t.Run("reduces capacity to length and keeps contents", func(t *testing.T) {
 		q := NewWithCap[int](64)
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 
 		q.Shrink()
 
-		if got := q.Cap(); got != 3 {
-			t.Errorf("Cap() after Shrink() = %d, want 3 (trimmed to len)", got)
+		if got, want := q.Cap(), q.Len(); got != want {
+			t.Errorf("Cap() after Shrink() = %d, want Len() = %d", got, want)
 		}
 
-		if got := q.Len(); got != 3 {
-			t.Errorf("Len() after Shrink() = %d, want 3", got)
-		}
-
-		for i, want := range []int{1, 2, 3} {
-			if got, ok := q.Pop(); !ok || got != want {
-				t.Errorf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
-			}
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Shrink() = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("allocates a new backing array", func(t *testing.T) {
 		q := NewWithCap[int](64)
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 		old := &q.buf.Data()[0]
 
 		q.Shrink()
 
 		if got := &q.buf.Data()[0]; got == old {
-			t.Errorf("&data[0] after Shrink() = %p, want new backing array (not %p)", got, old)
+			t.Errorf("&data[0] after Shrink() = %p, want a new backing array",
+				got)
+		}
+	})
+
+	t.Run("compacts wrapped elements", func(t *testing.T) {
+		q := wrapped()
+		q.Pop()
+
+		q.Shrink()
+
+		if got, want := q.Cap(), q.Len(); got != want {
+			t.Errorf("Cap() after Shrink() = %d, want Len() = %d", got, want)
 		}
 
-		if got := q.Cap(); got != 3 {
-			t.Errorf("Cap() after Shrink() = %d, want 3", got)
+		if got, want := q.Slice(), []int{4, 5, 6}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Shrink() = %v, want %v", got, want)
 		}
 	})
 
@@ -902,67 +870,62 @@ func TestQueue_Shrink(t *testing.T) {
 		if got := q.Cap(); got != 0 {
 			t.Errorf("Cap() after Shrink() on empty = %d, want 0", got)
 		}
-
-		if got := q.Len(); got != 0 {
-			t.Errorf("Len() after Shrink() on empty = %d, want 0", got)
-		}
 	})
 
-	t.Run("queue stays usable after Shrink", func(t *testing.T) {
+	t.Run("usable after Shrink", func(t *testing.T) {
 		q := NewWithCap[int](16)
 		q.Push(1)
 		q.Shrink()
+
 		q.Push(2)
 
-		if got, ok := q.Pop(); !ok || got != 1 {
-			t.Errorf("Pop() after reuse = (%d, %v), want (1, true)", got, ok)
-		}
-
-		if got, ok := q.Pop(); !ok || got != 2 {
-			t.Errorf("Pop() = (%d, %v), want (2, true)", got, ok)
+		if got, want := q.Slice(), []int{1, 2}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Shrink() and Push(2) = %v, want %v",
+				got, want)
 		}
 	})
 }
 
 func TestQueue_Clip(t *testing.T) {
-	t.Run("reduces capacity to length and preserves contents", func(t *testing.T) {
+	t.Run("reduces capacity to length and keeps contents", func(t *testing.T) {
 		q := NewWithCap[int](64)
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 
 		q.Clip()
 
-		if got := q.Cap(); got != 3 {
-			t.Errorf("Cap() after Clip() = %d, want 3 (trimmed to len)", got)
+		if got, want := q.Cap(), q.Len(); got != want {
+			t.Errorf("Cap() after Clip() = %d, want Len() = %d", got, want)
 		}
 
-		if got := q.Len(); got != 3 {
-			t.Errorf("Len() after Clip() = %d, want 3", got)
-		}
-
-		for i, want := range []int{1, 2, 3} {
-			if got, ok := q.Pop(); !ok || got != want {
-				t.Errorf("Pop() #%d = (%d, %v), want (%d, true)", i, got, ok, want)
-			}
+		if got, want := q.Slice(), []int{1, 2, 3}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Clip() = %v, want %v", got, want)
 		}
 	})
 
-	t.Run("does not allocate a new backing array", func(t *testing.T) {
+	t.Run("does not reallocate", func(t *testing.T) {
 		q := NewWithCap[int](64)
-		q.Push(1)
-		q.Push(2)
-		q.Push(3)
+		q.PushN(1, 2, 3)
 		old := &q.buf.Data()[0]
 
 		q.Clip()
 
 		if got := &q.buf.Data()[0]; got != old {
-			t.Errorf("&data[0] after Clip() = %p, want %p (same backing array, no copy)", got, old)
+			t.Errorf("&data[0] after Clip() = %p, want %p (no copy)", got, old)
+		}
+	})
+
+	t.Run("compacts wrapped elements", func(t *testing.T) {
+		q := wrapped()
+		q.Pop()
+
+		q.Clip()
+
+		if got, want := q.Cap(), q.Len(); got != want {
+			t.Errorf("Cap() after Clip() = %d, want Len() = %d", got, want)
 		}
 
-		if got := q.Cap(); got != 3 {
-			t.Errorf("Cap() after Clip() = %d, want 3", got)
+		if got, want := q.Slice(), []int{4, 5, 6}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Clip() = %v, want %v", got, want)
 		}
 	})
 
@@ -974,251 +937,338 @@ func TestQueue_Clip(t *testing.T) {
 		if got := q.Cap(); got != 0 {
 			t.Errorf("Cap() after Clip() on empty = %d, want 0", got)
 		}
-
-		if got := q.Len(); got != 0 {
-			t.Errorf("Len() after Clip() on empty = %d, want 0", got)
-		}
 	})
 
-	t.Run("queue stays usable after Clip", func(t *testing.T) {
+	t.Run("usable after Clip", func(t *testing.T) {
 		q := NewWithCap[int](16)
 		q.Push(1)
 		q.Clip()
+
 		q.Push(2)
 
-		if got, ok := q.Pop(); !ok || got != 1 {
-			t.Errorf("Pop() after reuse = (%d, %v), want (1, true)", got, ok)
-		}
-
-		if got, ok := q.Pop(); !ok || got != 2 {
-			t.Errorf("Pop() = (%d, %v), want (2, true)", got, ok)
+		if got, want := q.Slice(), []int{1, 2}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Clip() and Push(2) = %v, want %v",
+				got, want)
 		}
 	})
 }
 
+func TestQueue_Grow(t *testing.T) {
+	t.Run("reserves capacity without changing contents", func(t *testing.T) {
+		q := wrapped()
+
+		q.Grow(100)
+
+		if got := q.Cap(); got < 104 {
+			t.Errorf("Cap() after Grow(100) = %d, want >= 104", got)
+		}
+
+		if got, want := q.Slice(), []int{3, 4, 5, 6}; !slices.Equal(got, want) {
+			t.Errorf("Slice() after Grow(100) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("no reallocation within grown capacity", func(t *testing.T) {
+		q := New[int]()
+		q.Grow(8)
+		capBefore := q.Cap()
+
+		for i := range 8 {
+			q.Push(i)
+		}
+
+		if got := q.Cap(); got != capBefore {
+			t.Errorf("Cap() after 8 Push() = %d, want %d", got, capBefore)
+		}
+	})
+
+	t.Run("non-positive n is a no-op", func(t *testing.T) {
+		q := fill(3)
+		capBefore := q.Cap()
+
+		q.Grow(0)
+
+		if got := q.Cap(); got != capBefore {
+			t.Errorf("Cap() after Grow(0) = %d, want %d", got, capBefore)
+		}
+
+		q.Grow(-1)
+
+		if got := q.Cap(); got != capBefore {
+			t.Errorf("Cap() after Grow(-1) = %d, want %d", got, capBefore)
+		}
+	})
+}
+
+// TestQueue_SustainedChurn interleaves Push and Pop at a fixed live size over
+// many iterations: FIFO order must hold throughout and the capacity must stay
+// bounded near the live size instead of growing with the iteration count.
 func TestQueue_SustainedChurn(t *testing.T) {
-	// Interleave Push/Pop at a fixed live size over many iterations. FIFO order
-	// must hold throughout and the capacity must stay bounded (it must not grow
-	// without limit). With the current sliding-slice backing, Cap is measured
-	// from the moving front and resets when the window slides and reallocates,
-	// so the assertion is a generous bound rather than a tight equality.
-	const live = 16
-	const iterations = 100000
+	const (
+		live       = 16
+		iterations = 100000
+	)
 
-	q := New[int]()
-	for i := range live {
-		q.Push(i)
-	}
-
+	q := fill(live)
 	next := live
 	maxCap := 0
 	for i := range iterations {
-		got, ok := q.Pop()
-		if !ok {
-			t.Fatalf("Pop() #%d: ok = false, want true", i)
-		}
-
-		if want := next - live; got != want {
-			t.Fatalf("Pop() #%d = %d, want %d (FIFO order broken)", i, got, want)
+		if got, ok := q.Pop(); !ok || got != next-live {
+			t.Fatalf("Pop() #%d = (%d, %v), want (%d, true)",
+				i, got, ok, next-live)
 		}
 
 		q.Push(next)
 		next++
-
-		if c := q.Cap(); c > maxCap {
-			maxCap = c
-		}
+		maxCap = max(maxCap, q.Cap())
 
 		if got := q.Len(); got != live {
-			t.Fatalf("Len() #%d = %d, want %d (live size must stay fixed)", i, got, live)
+			t.Fatalf("Len() #%d = %d, want %d", i, got, live)
 		}
 	}
 
-	// The window only ever holds `live` elements, so the backing capacity must
-	// stay a small multiple of that, never proportional to the iteration count.
 	if maxCap > live*64 {
-		t.Errorf("max Cap() during churn = %d, want <= %d (bounded near live size %d)", maxCap, live*64, live)
+		t.Errorf("max Cap() during churn = %d, want <= %d", maxCap, live*64)
 	}
 }
 
-func TestQueue_NilReceiver(t *testing.T) {
-	// A nil *Queue[T] must behave as a valid empty queue for every read-only
-	// method, without panicking.
-	t.Run("Len is 0", func(t *testing.T) {
-		var q *Queue[int]
+// TestQueue_RandomOps runs a seeded random sequence of operations against a
+// slice model and checks that both agree after every step.
+func TestQueue_RandomOps(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2))
+	q := New[int]()
+	var model []int // front to back
 
-		if got := q.Len(); got != 0 {
-			t.Errorf("nil.Len() = %d, want 0", got)
-		}
-	})
+	for i := range 5000 {
+		switch op := r.IntN(100); {
+		case op < 40:
+			q.Push(i)
+			model = append(model, i)
+		case op < 50:
+			q.PushN(i, i+1, i+2)
+			model = append(model, i, i+1, i+2)
+		case op < 80:
+			want, wantOK := 0, false
+			if len(model) > 0 {
+				want, wantOK = model[0], true
+				model = model[1:]
+			}
 
-	t.Run("Cap is 0", func(t *testing.T) {
-		var q *Queue[int]
+			if got, ok := q.Pop(); ok != wantOK || got != want {
+				t.Fatalf("step %d: Pop() = (%d, %v), want (%d, %v)",
+					i, got, ok, want, wantOK)
+			}
+		case op < 88:
+			n := r.IntN(5) - 1
+			k := min(max(n, 0), len(model))
+			want := slices.Clone(model[:k])
+			model = model[k:]
 
-		if got := q.Cap(); got != 0 {
-			t.Errorf("nil.Cap() = %d, want 0", got)
-		}
-	})
+			if got := q.PopN(n); !slices.Equal(got, want) {
+				t.Fatalf("step %d: PopN(%d) = %v, want %v", i, n, got, want)
+			}
+		case op < 94:
+			want, wantOK := 0, false
+			if len(model) > 0 {
+				want, wantOK = model[0], true
+			}
 
-	t.Run("IsEmpty is true", func(t *testing.T) {
-		var q *Queue[int]
-
-		if got := q.IsEmpty(); !got {
-			t.Errorf("nil.IsEmpty() = %v, want true", got)
-		}
-	})
-
-	t.Run("Peek returns zero, false", func(t *testing.T) {
-		var q *Queue[int]
-
-		if got, ok := q.Peek(); ok || got != 0 {
-			t.Errorf("nil.Peek() = (%d, %v), want (0, false)", got, ok)
-		}
-	})
-
-	t.Run("Pop returns zero, false", func(t *testing.T) {
-		var q *Queue[int]
-
-		if got, ok := q.Pop(); ok || got != 0 {
-			t.Errorf("nil.Pop() = (%d, %v), want (0, false)", got, ok)
-		}
-	})
-
-	t.Run("Slice is empty", func(t *testing.T) {
-		var q *Queue[int]
-
-		if got := q.Slice(); len(got) != 0 {
-			t.Errorf("nil.Slice() = %v, want no elements", got)
-		}
-	})
-
-	t.Run("All yields nothing", func(t *testing.T) {
-		var q *Queue[int]
-		count := 0
-		for range q.All() {
-			count++
-		}
-
-		if count != 0 {
-			t.Errorf("nil.All() count = %d, want 0", count)
-		}
-	})
-
-	t.Run("Clone returns a usable empty queue", func(t *testing.T) {
-		var q *Queue[int]
-
-		c := q.Clone()
-		if c == nil {
-			t.Fatalf("nil.Clone() = nil, want a usable empty queue")
+			if got, ok := q.Peek(); ok != wantOK || got != want {
+				t.Fatalf("step %d: Peek() = (%d, %v), want (%d, %v)",
+					i, got, ok, want, wantOK)
+			}
+		default:
+			switch r.IntN(5) {
+			case 0:
+				q.Clear()
+				model = nil
+			case 1:
+				q.Reset()
+				model = nil
+			case 2:
+				q.Shrink()
+			case 3:
+				q.Clip()
+			default:
+				q.Grow(r.IntN(16))
+			}
 		}
 
-		if got := c.Len(); got != 0 {
-			t.Errorf("nil.Clone().Len() = %d, want 0", got)
+		if got := q.Slice(); !slices.Equal(got, model) {
+			t.Fatalf("step %d: Slice() = %v, want %v", i, got, model)
 		}
 
-		// the clone must be usable for mutation without a further New call.
-		c.Push(42)
-
-		if got, ok := c.Pop(); !ok || got != 42 {
-			t.Errorf("Pop() after push on cloned nil = (%d, %v), want (42, true)", got, ok)
+		if got := q.Len(); got != len(model) {
+			t.Fatalf("step %d: Len() = %d, want %d", i, got, len(model))
 		}
-	})
+	}
 }
 
-func TestQueue_ZeroValue(t *testing.T) {
-	var c Queue[int]
+// TestQueue_NilReceiver checks that every read-only and removal method treats
+// a nil receiver as an empty queue.
+func TestQueue_NilReceiver(t *testing.T) {
+	var q *Queue[int]
+
+	if got := q.Len(); got != 0 {
+		t.Errorf("nil.Len() = %d, want 0", got)
+	}
+
+	if got := q.Cap(); got != 0 {
+		t.Errorf("nil.Cap() = %d, want 0", got)
+	}
+
+	if got := q.IsEmpty(); !got {
+		t.Errorf("nil.IsEmpty() = %v, want true", got)
+	}
+
+	if got, ok := q.Peek(); ok || got != 0 {
+		t.Errorf("nil.Peek() = (%d, %v), want (0, false)", got, ok)
+	}
+
+	count := 0
+	for range q.All() {
+		count++
+	}
+
+	if count != 0 {
+		t.Errorf("nil.All() count = %d, want 0", count)
+	}
+
+	c := q.Clone()
+	if c == nil {
+		t.Fatalf("nil.Clone() = nil, want a usable empty queue")
+	}
 
 	if got := c.Len(); got != 0 {
-		t.Errorf("Len() on zero value = %d, want 0", got)
+		t.Errorf("nil.Clone().Len() = %d, want 0", got)
 	}
 
-	if got := c.Cap(); got != 0 {
-		t.Errorf("Cap() on zero value = %d, want 0", got)
+	c.Push(42)
+
+	if got, ok := c.Pop(); !ok || got != 42 {
+		t.Errorf("Pop() after Push(42) on nil.Clone() = (%d, %v), "+
+			"want (42, true)", got, ok)
 	}
 
-	if got := c.IsEmpty(); !got {
-		t.Errorf("IsEmpty() on zero value = %v, want true", got)
+	if got := q.Slice(); got != nil {
+		t.Errorf("nil.Slice() = %v, want nil", got)
 	}
 
-	if got, ok := c.Pop(); ok {
-		t.Errorf("Pop() on zero value: got %d, ok = true, want ok = false", got)
+	if got, ok := q.Pop(); ok || got != 0 {
+		t.Errorf("nil.Pop() = (%d, %v), want (0, false)", got, ok)
 	}
 
-	c.Push(1)
-	c.Push(2)
-
-	if got := c.Len(); got != 2 {
-		t.Errorf("Len() after pushes = %d, want 2", got)
-	}
-
-	if got, ok := c.Pop(); !ok || got != 1 {
-		t.Errorf("Pop() = (%d, %v), want (1, true)", got, ok)
-	}
-
-	c.Reset()
-	c.Clear()
-	c.Shrink()
-	c.Clip()
-	c.Grow(4)
-
-	if got := c.Cap(); got < 4 {
-		t.Errorf("Cap() after Grow(4) = %d, want >= 4", got)
+	if got := q.PopN(3); got != nil {
+		t.Errorf("nil.PopN(3) = %v, want nil", got)
 	}
 }
 
-func TestQueue_NilReceiver_MutatorsPanic(t *testing.T) {
-	// The mutating methods need a non-nil receiver to store their results; a nil
-	// receiver is a programming error and must panic.
+// TestQueue_NilReceiverMutatorsPanic checks that every method that stores,
+// clears, resets, or resizes data panics on a nil receiver.
+func TestQueue_NilReceiverMutatorsPanic(t *testing.T) {
 	tests := []struct {
 		name string
-		call func(q *Queue[int])
+		op   string
+		call func(*Queue[int])
 	}{
 		{
 			name: "Push",
+			op:   "Push",
 			call: func(q *Queue[int]) { q.Push(1) },
 		},
 		{
 			name: "PushN",
+			op:   "PushN",
 			call: func(q *Queue[int]) { q.PushN(1, 2) },
 		},
 		{
 			name: "PushN with no arguments",
+			op:   "PushN",
 			call: func(q *Queue[int]) { q.PushN() },
 		},
 		{
-			name: "Grow",
-			call: func(q *Queue[int]) { q.Grow(8) },
-		},
-		{
-			name: "Grow zero",
-			call: func(q *Queue[int]) { q.Grow(0) },
-		},
-		{
-			name: "Grow negative",
-			call: func(q *Queue[int]) { q.Grow(-1) },
-		},
-		{
 			name: "Clear",
+			op:   "Clear",
 			call: func(q *Queue[int]) { q.Clear() },
 		},
 		{
 			name: "Reset",
+			op:   "Reset",
 			call: func(q *Queue[int]) { q.Reset() },
 		},
 		{
 			name: "Shrink",
+			op:   "Shrink",
 			call: func(q *Queue[int]) { q.Shrink() },
 		},
 		{
 			name: "Clip",
+			op:   "Clip",
 			call: func(q *Queue[int]) { q.Clip() },
+		},
+		{
+			name: "Grow",
+			op:   "Grow",
+			call: func(q *Queue[int]) { q.Grow(8) },
+		},
+		{
+			name: "Grow zero",
+			op:   "Grow",
+			call: func(q *Queue[int]) { q.Grow(0) },
+		},
+		{
+			name: "Grow negative",
+			op:   "Grow",
+			call: func(q *Queue[int]) { q.Grow(-1) },
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var q *Queue[int]
-			sharedtest.Panics(t, tt.name, "queue: "+strings.Fields(tt.name)[0]+" on nil receiver", func() { tt.call(q) })
+			sharedtest.Panics(t, tt.name, "queue: "+tt.op+" on nil receiver",
+				func() { tt.call(q) })
 		})
+	}
+}
+
+func TestQueue_ZeroValue(t *testing.T) {
+	var q Queue[int]
+
+	if got := q.Len(); got != 0 {
+		t.Errorf("Len() on zero value = %d, want 0", got)
+	}
+
+	if got := q.Cap(); got != 0 {
+		t.Errorf("Cap() on zero value = %d, want 0", got)
+	}
+
+	if got := q.IsEmpty(); !got {
+		t.Errorf("IsEmpty() on zero value = %v, want true", got)
+	}
+
+	if got, ok := q.Peek(); ok || got != 0 {
+		t.Errorf("Peek() on zero value = (%d, %v), want (0, false)", got, ok)
+	}
+
+	if got, ok := q.Pop(); ok || got != 0 {
+		t.Errorf("Pop() on zero value = (%d, %v), want (0, false)", got, ok)
+	}
+
+	q.Clear()
+	q.Reset()
+	q.Shrink()
+	q.Clip()
+	q.Grow(4)
+
+	if got := q.Cap(); got < 4 {
+		t.Errorf("Cap() after Grow(4) = %d, want >= 4", got)
+	}
+
+	q.PushN(1, 2)
+
+	if got, ok := q.Pop(); !ok || got != 1 {
+		t.Errorf("Pop() after PushN(1, 2) on zero value = (%d, %v), "+
+			"want (1, true)", got, ok)
 	}
 }

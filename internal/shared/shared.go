@@ -1,10 +1,14 @@
-// Package shared holds small helpers used by several container packages.
+// Package shared provides small helpers shared by the stack, queue, deque,
+// set, binheap, pqueue, orderedmap, and orderedset packages.
 //
 // It is internal to this module: the helpers exist to keep behavior and
 // messages identical across packages, not as public API.
 package shared
 
-import "cmp"
+import (
+	"cmp"
+	"slices"
+)
 
 // MustNotNil panics with a descriptive message when recv is nil. pkg is the
 // name of the calling package and op the name of the method; together they
@@ -34,4 +38,17 @@ func ShrinkSlice[T any](s []T) []T {
 	copy(trimmed, s)
 
 	return trimmed
+}
+
+// GrowSlice returns a slice with the same elements as s and spare capacity for
+// at least n more elements. When n is non-positive or the capacity is already
+// sufficient, s is returned unchanged; otherwise the elements are copied into a
+// larger array, as [slices.Grow] does. It runs in O(n) when it copies and
+// panics if the new capacity overflows, the same condition as [slices.Grow].
+func GrowSlice[T any](s []T, n int) []T {
+	if n <= 0 {
+		return s
+	}
+
+	return slices.Grow(s, n)
 }

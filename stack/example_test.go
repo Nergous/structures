@@ -24,8 +24,8 @@ func Example() {
 	// 1
 }
 
-// NewWithCap preallocates the backing array. Use it when the final size is
-// known up front to avoid reallocations during Push.
+// NewWithCap preallocates room for a known number of elements. Use it when the
+// final size is known up front to avoid reallocations during Push.
 func ExampleNewWithCap() {
 	s := stack.NewWithCap[string](3)
 	s.Push("a")
@@ -36,27 +36,8 @@ func ExampleNewWithCap() {
 	// Output: 3 3
 }
 
-// Pop removes and returns the top element. The second value reports whether
-// the stack was non-empty; on an empty stack it is false and the value is the
-// zero value.
-func ExampleStack_Pop() {
-	s := stack.New[string]()
-	s.Push("first")
-	s.Push("last")
-
-	v, ok := s.Pop()
-	fmt.Println(v, ok)
-
-	s.Pop() // removes "first"
-
-	_, ok = s.Pop() // stack is now empty
-	fmt.Println(ok)
-	// Output:
-	// last true
-	// false
-}
-
-// Peek returns the top element without removing it.
+// Peek returns the top element without removing it. The boolean result is
+// false for an empty stack.
 func ExampleStack_Peek() {
 	s := stack.New[int]()
 	s.Push(10)
@@ -65,63 +46,36 @@ func ExampleStack_Peek() {
 	top, ok := s.Peek()
 	fmt.Println(top, ok)
 	fmt.Println("len unchanged:", s.Len())
+
+	empty := stack.New[int]()
+	_, ok = empty.Peek()
+	fmt.Println(ok)
 	// Output:
 	// 20 true
 	// len unchanged: 2
+	// false
 }
 
 // All returns a range-over-func iterator over the elements from top to bottom
 // without consuming them. The stack is left intact after iteration.
 func ExampleStack_All() {
 	s := stack.New[int]()
-	s.Push(1)
-	s.Push(2)
-	s.Push(3)
+	s.PushN(1, 2, 3)
 
 	for v := range s.All() {
 		fmt.Println(v)
 	}
 
-	fmt.Println("remaining:", s.Len())
+	fmt.Println("len unchanged:", s.Len())
 	// Output:
 	// 3
 	// 2
 	// 1
-	// remaining: 3
+	// len unchanged: 3
 }
 
-// PushN adds several elements at once, in argument order, so the last argument
-// ends up on top. It is equivalent to calling Push for each value but grows the
-// backing array at most once.
-func ExampleStack_PushN() {
-	s := stack.New[int]()
-	s.PushN(1, 2, 3) // 3 ends up on top
-
-	for !s.IsEmpty() {
-		v, _ := s.Pop()
-		fmt.Println(v)
-	}
-	// Output:
-	// 3
-	// 2
-	// 1
-}
-
-// PopN removes several elements at once and returns them in pop order, so the
-// first element of the result is the former top.
-func ExampleStack_PopN() {
-	s := stack.New[int]()
-	s.PushN(1, 2, 3, 4, 5)
-
-	fmt.Println(s.PopN(3))
-	fmt.Println(s.Len())
-	// Output:
-	// [5 4 3]
-	// 2
-}
-
-// Clone returns an independent shallow copy. Mutating one stack does not affect
-// the other, since they share no backing array.
+// Clone returns an independent shallow copy. Mutating one stack does not
+// affect the other, since they share no backing array.
 func ExampleStack_Clone() {
 	a := stack.New[int]()
 	a.PushN(1, 2, 3)
@@ -129,16 +83,14 @@ func ExampleStack_Clone() {
 	b := a.Clone()
 	b.Pop() // removes 3 from b only
 
-	fmt.Println(a.Len(), b.Len())
-
-	top, _ := a.Peek()
-	fmt.Println("a top:", top)
+	fmt.Println(a.Slice())
+	fmt.Println(b.Slice())
 	// Output:
-	// 3 2
-	// a top: 3
+	// [3 2 1]
+	// [2 1]
 }
 
-// Slice returns a copy of the elements from top to bottom (LIFO) — the same
+// Slice returns a copy of the elements from top to bottom (LIFO), the same
 // order All yields. The returned slice is independent of the stack.
 func ExampleStack_Slice() {
 	s := stack.New[int]()
@@ -161,10 +113,96 @@ func ExampleStack_Slice() {
 	// true
 }
 
-// Grow reserves capacity for more elements up front; Shrink and Clip both
-// shrink the capacity back down to the current length. Shrink copies into a
-// right-sized array and frees the old one immediately, whereas Clip only
-// reslices in O(1) and defers reclaiming memory to the next growth.
+// Push adds an element to the top of the stack, so the most recent push is
+// the next one to come out.
+func ExampleStack_Push() {
+	s := stack.New[string]()
+	s.Push("a")
+	s.Push("b")
+
+	top, _ := s.Peek()
+	fmt.Println(top, s.Len())
+	// Output: b 2
+}
+
+// PushN adds several elements at once, in argument order, so the last argument
+// ends up on top. It is equivalent to calling Push for each value but grows the
+// backing array at most once.
+func ExampleStack_PushN() {
+	s := stack.New[int]()
+	s.PushN(1, 2, 3) // 3 ends up on top
+
+	for !s.IsEmpty() {
+		v, _ := s.Pop()
+		fmt.Println(v)
+	}
+	// Output:
+	// 3
+	// 2
+	// 1
+}
+
+// Pop removes and returns the top element. The boolean result reports whether
+// the stack was non-empty; on an empty stack it is false and the returned
+// value is the zero value.
+func ExampleStack_Pop() {
+	s := stack.New[string]()
+	s.Push("first")
+	s.Push("last")
+
+	v, ok := s.Pop()
+	fmt.Println(v, ok)
+	s.Pop()         // removes "first"
+	_, ok = s.Pop() // stack is now empty
+	fmt.Println(ok)
+	// Output:
+	// last true
+	// false
+}
+
+// PopN removes up to n elements from the top and returns them in LIFO order,
+// so the first element of the result is the former top.
+func ExampleStack_PopN() {
+	s := stack.New[int]()
+	s.PushN(1, 2, 3, 4, 5)
+
+	fmt.Println(s.PopN(3))
+	fmt.Println("remaining:", s.Slice())
+	// Output:
+	// [5 4 3]
+	// remaining: [2 1]
+}
+
+// Clear empties the stack and releases its backing array: capacity drops back
+// to zero, and the stack stays usable.
+func ExampleStack_Clear() {
+	s := stack.NewWithCap[int](8)
+	s.PushN(1, 2)
+
+	s.Clear()
+	fmt.Println(s.Len(), s.Cap())
+
+	s.Push(3)
+	fmt.Println(s.Slice())
+	// Output:
+	// 0 0
+	// [3]
+}
+
+// Reset, unlike Clear, empties the stack but keeps the allocated backing
+// array, so it can be reused without a new allocation.
+func ExampleStack_Reset() {
+	s := stack.NewWithCap[int](8)
+	s.PushN(1, 2)
+
+	s.Reset()
+	fmt.Println(s.Len(), s.Cap())
+	// Output: 0 8
+}
+
+// Shrink copies the elements into a right-sized array and frees the old one
+// immediately. Grow reserves capacity up front, and Clip trims spare capacity
+// without copying.
 func ExampleStack_Shrink() {
 	s := stack.NewWithCap[int](1024)
 	s.PushN(1, 2, 3)
@@ -173,54 +211,39 @@ func ExampleStack_Shrink() {
 	fmt.Println(s.Cap() >= 2003)
 
 	s.Shrink() // copy into a right-sized array, free the old one now
-	fmt.Println(s.Len(), s.Cap())
+	fmt.Println(s.Cap())
 
 	s.Clip() // already tight: no-op
-	fmt.Println(s.Len(), s.Cap())
+	fmt.Println(s.Cap())
 	// Output:
 	// true
-	// 3 3
-	// 3 3
+	// 3
+	// 3
 }
 
-// Reset empties the stack but keeps the allocated backing array, so it can be
-// reused without a new allocation.
-func ExampleStack_Reset() {
-	s := stack.NewWithCap[int](8)
-	s.Push(1)
-	s.Push(2)
-
-	s.Reset()
-	fmt.Println(s.Len(), s.Cap())
-	// Output: 0 8
-}
-
-// Clear, unlike Reset, releases the backing array: capacity drops back to zero
-// and the memory becomes eligible for garbage collection.
-func ExampleStack_Clear() {
-	s := stack.NewWithCap[int](8)
-	s.Push(1)
-	s.Push(2)
-
-	s.Clear()
-	fmt.Println(s.Len(), s.Cap())
-	// Output: 0 0
-}
-
-// The nil zero value of *Stack[T] behaves as an empty stack for every
-// read-only method, so it can be queried safely without first calling New.
-// Mutating methods (Push, PushN, Clear, Reset, Grow, Shrink, Clip) still
-// require a stack created with New.
+// A nil *Stack[T] behaves as an empty stack for every read-only method and for
+// removals, so it is safe to query. Mutating methods still require a stack
+// created with New (or a zero value).
 func Example_nilReceiver() {
 	var s *stack.Stack[int] // nil, never initialized
 
-	fmt.Println(s.Len(), s.IsEmpty())
+	fmt.Println(s.Len(), s.IsEmpty(), s.Cap())
 
 	v, ok := s.Pop()
 	fmt.Println(v, ok)
 	// Output:
-	// 0 true
+	// 0 true 0
 	// 0 false
+}
+
+// The zero value of Stack[T] is usable as an empty stack, so New is optional.
+func Example_zeroValue() {
+	var s stack.Stack[string]
+	s.Push("a")
+	s.Push("b")
+
+	fmt.Println(s.Len(), s.Slice())
+	// Output: 2 [b a]
 }
 
 // A practical example: checking whether brackets are balanced. Push each
@@ -228,21 +251,21 @@ func Example_nilReceiver() {
 func Example_balancedBrackets() {
 	balanced := func(input string) bool {
 		pairs := map[rune]rune{')': '(', ']': '[', '}': '{'}
-		st := stack.New[rune]()
+		s := stack.New[rune]()
 
 		for _, r := range input {
 			switch r {
 			case '(', '[', '{':
-				st.Push(r)
+				s.Push(r)
 			case ')', ']', '}':
-				top, ok := st.Pop()
+				top, ok := s.Pop()
 				if !ok || top != pairs[r] {
 					return false
 				}
 			}
 		}
 
-		return st.IsEmpty()
+		return s.IsEmpty()
 	}
 
 	fmt.Println(balanced("([]{})"))

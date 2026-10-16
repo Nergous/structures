@@ -9,6 +9,40 @@ they are always listed under **Breaking**.
 
 ## [Unreleased]
 
+### Breaking
+
+- `pqueue`: the `PriorityQueue` type is renamed to `Queue`, so it reads as
+  `pqueue.Queue[K, P]`. There is no alias; replace `pqueue.PriorityQueue` with
+  `pqueue.Queue`.
+- `set` and `orderedset`: `RetainAll` is renamed to `RetainSet`, matching
+  `AddSet` and `RemoveSet`. There is no alias; replace `RetainAll` with
+  `RetainSet`.
+
+### Added
+
+- `set`: `RemoveFunc(del)` deletes every value for which `del` returns true
+  and reports how many were removed, with the same contract as
+  `orderedset.RemoveFunc`.
+- `set`: `Shrink` rebuilds the backing map right-sized. Go maps never shrink
+  in place, so it is the only way to reclaim memory short of `Clear`.
+- `deque`: `Backward` iterates from back to front without consuming elements.
+- `pqueue`: `From`, `FromMax`, and `FromFunc` build a queue from a slice of
+  `Item[K, P]` in O(n), mirroring the `binheap` constructors. When a key
+  repeats, its last occurrence wins.
+- `pqueue`: `PushN` pushes several items with `Push` semantics, so an existing
+  key has its priority updated.
+
+### Changed
+
+- Documentation, tests, and benchmarks consistency pass across all packages:
+  one declaration order, shared godoc and README templates, uniform test
+  layout with nil-receiver and zero-value checks, parallel runnable examples,
+  and benchmarks built on one skeleton (`benchSize`, `b.Loop`, bulk state
+  restores instead of per-iteration timer stops).
+- Root `README.md`, `ROADMAP.md`, and `AGENTS.md` describe every package with
+  one template and document the naming conventions and deliberate API
+  omissions.
+
 ## [0.2.0] - 2026-10-15
 
 The first release under the `github.com/Nergous/structures` module path. It

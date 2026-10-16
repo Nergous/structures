@@ -9,16 +9,16 @@ stay dependency-free, idiomatic, and easy to audit.
 
 ## Current packages
 
-- `stack`: generic slice-backed LIFO stack.
-- `queue`: generic slice-backed FIFO queue.
-- `deque`: generic ring-buffer double-ended queue.
-- `set`: generic map-backed set with unordered iteration and set algebra.
-- `binheap`: generic binary heap with min, max, or custom order.
-- `pqueue`: generic keyed priority queue with O(log n) priority updates and
-  removal by key.
-- `orderedmap`: generic insertion-ordered hash map with O(1) access to both
+- `stack`: generic, slice-backed LIFO stack.
+- `queue`: generic, slice-backed ring-buffer FIFO queue.
+- `deque`: generic, slice-backed ring-buffer double-ended queue.
+- `set`: generic, map-backed set with unordered iteration and set algebra.
+- `binheap`: generic, slice-backed binary heap with min, max, or custom order.
+- `pqueue`: generic, heap-backed keyed priority queue with O(log n) priority
+  updates and removal by key.
+- `orderedmap`: generic, insertion-ordered hash map with O(1) access to both
   ends and `MoveToBack`.
-- `orderedset`: generic insertion-ordered set with set algebra in a defined
+- `orderedset`: generic, insertion-ordered set with set algebra in a defined
   order.
 
 These packages are the API baseline for naming, nil behavior, docs, examples,
@@ -38,7 +38,10 @@ New packages should follow the same house style:
 - `Slice()` snapshots where a flat element snapshot is meaningful.
 - `Clone()` as an independent shallow copy.
 - `Clear()` releases backing storage; `Reset()` empties while keeping storage
-  for reuse when the backing can support it.
+  for reuse when the backing can support it; `Shrink()`, `Clip()`, and
+  `Grow()` where capacity is observable.
+- the declaration, test, example, and README order described in
+  [`AGENTS.md`](./AGENTS.md).
 - no internal synchronization; callers wrap containers when sharing them across
   goroutines.
 - no external runtime dependencies.
@@ -50,9 +53,8 @@ New packages should follow the same house style:
 - Add and maintain CI coverage for vetting, tests, and the race detector.
 - Add a root README lifecycle matrix for `Clear`, `Reset`, resizing methods, and
   package-specific omissions.
-- Review in-place set algebra naming before release. The internal plan prefers
-  the `*With` family (`UnionWith`, `IntersectWith`, `DifferenceWith`,
-  `SymmetricDifferenceWith`) for consistency with future set-like packages.
+- Keep in-place set algebra named `AddSet`, `RemoveSet`, and `RetainSet` in
+  future set-like packages, matching `set` and `orderedset`.
 - Release with semantic versioning; while the major version is 0, breaking
   changes bump the minor version and are listed in the changelog.
 
@@ -105,7 +107,8 @@ case:
 - Add root-level examples that compare packages side by side.
 - Keep godoc comments precise enough to stand alone on pkg.go.dev.
 - Document intentional omissions, especially when a package lacks `Cap`, `Grow`,
-  `Shrink`, `Clip`, `Clear`, or `Reset`.
+  `Shrink`, `Clip`, `Clear`, or `Reset`; the current list lives in
+  [`AGENTS.md`](./AGENTS.md).
 - Document performance trade-offs without overpromising exact runtime behavior.
 
 ## Considered and rejected
@@ -113,7 +116,7 @@ case:
 These are intentionally not planned as standalone public packages right now:
 
 - `multiset.Multiset`: merged into `counter.Counter`.
-- `iheap.IndexedHeap`: merged into `pqueue.PriorityQueue`, which is keyed by
+- `iheap.IndexedHeap`: merged into `pqueue.Queue`, which is keyed by
   unique values. Duplicate elements with separate priorities are covered by
   `binheap` with a comparator.
 - Skip list: overlaps with sorted B-tree structures, with worse cache locality

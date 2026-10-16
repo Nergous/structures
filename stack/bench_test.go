@@ -2,125 +2,44 @@ package stack
 
 import "testing"
 
+// benchSize is the number of elements in containers prepared for benchmarks.
+const benchSize = 1 << 12
+
 // Package-level sinks prevent the compiler from optimizing away benchmarked
 // results (and the work that produces them).
 var (
 	intSink   int
 	boolSink  bool
 	sliceSink []int
+	stackSink *Stack[int]
 )
 
-// BenchmarkPush measures the amortized cost of a single Push, including the
-// occasional reallocation as the backing array grows. The stack grows across
-// the whole run, so the cost of those reallocations is amortized honestly over
-// every push rather than hidden behind a one-time prealloc.
-func BenchmarkPush(b *testing.B) {
-	b.ReportAllocs()
-
-	s := New[int]()
-	i := 0
-	for b.Loop() {
+// filled returns a stack holding the elements 0..n-1 in insertion order.
+func filled(n int) *Stack[int] {
+	s := NewWithCap[int](n)
+	for i := range n {
 		s.Push(i)
-		i++
 	}
 
-	// Keep the final size observable so the pushes are not dead code.
-	intSink = s.Len()
+	return s
 }
 
-// BenchmarkPushN measures a single bulk push of a fixed batch, the cheaper
-// alternative to repeated Push since it grows the backing array at most once.
-// The batch is built once outside the timed loop; the stack is reset (capacity
-// retained) each iteration so we measure the bulk append, not repeated growth.
-func BenchmarkPushN(b *testing.B) {
-	const batch = 1024
-
-	vs := make([]int, batch)
-	for i := range vs {
-		vs[i] = i
-	}
-
-	b.ReportAllocs()
-
-	s := NewWithCap[int](batch)
-	for b.Loop() {
-		s.PushN(vs...)
-		b.StopTimer()
-		s.Reset() // retain capacity so the next PushN does not reallocate
-		b.StartTimer()
-	}
-
-	intSink = s.Len()
-}
-
-// BenchmarkPop measures Pop in isolation. Refilling happens outside the timed
-// section: whenever the stack drains we push a fresh chunk with the timer
-// stopped, so only the Pop calls are measured.
-func BenchmarkPop(b *testing.B) {
-	const chunk = 1024
-
-	b.ReportAllocs()
-
-	s := NewWithCap[int](chunk)
-	for b.Loop() {
-		if s.IsEmpty() {
-			b.StopTimer()
-			for j := range chunk {
-				s.Push(j)
-			}
-
-			b.StartTimer()
-		}
-
-		_, boolSink = s.Pop()
-	}
-}
-
-// BenchmarkPopN measures draining fixed-size batches. Refilling happens outside
-// the timed section so the benchmark focuses on batch removal and result-slice
-// allocation.
-func BenchmarkPopN(b *testing.B) {
-	const batch = 128
-
-	b.ReportAllocs()
-
-	s := NewWithCap[int](batch)
-	for b.Loop() {
-		if s.Len() < batch {
-			b.StopTimer()
-			s.Reset()
-			for j := range batch {
-				s.Push(j)
-			}
-
-			b.StartTimer()
-		}
-
-		sliceSink = s.PopN(batch)
-	}
-}
-
-// BenchmarkPeek measures the cost of reading the top element, which must stay
-// O(1) and allocation-free.
+// BenchmarkPeek measures reading the top element, which must stay O(1) and
+// allocation-free.
 func BenchmarkPeek(b *testing.B) {
+	s := filled(benchSize)
+
 	b.ReportAllocs()
 
-	s := New[int]()
-	s.PushN(1, 2, 3)
 	for b.Loop() {
 		intSink, boolSink = s.Peek()
 	}
 }
 
-// BenchmarkAll measures a full iteration over the stack via the range-over-func
-// iterator, confirming iteration is allocation-free.
+// BenchmarkAll measures a full iteration over benchSize elements via the
+// range-over-func iterator, confirming iteration is allocation-free.
 func BenchmarkAll(b *testing.B) {
-	const n = 1024
-
-	s := NewWithCap[int](n)
-	for i := range n {
-		s.Push(i)
-	}
+	s := filled(benchSize)
 
 	b.ReportAllocs()
 
@@ -134,19 +53,208 @@ func BenchmarkAll(b *testing.B) {
 	}
 }
 
-// BenchmarkSlice measures copying the stack out to a plain slice, which
-// allocates exactly one backing array per call.
-func BenchmarkSlice(b *testing.B) {
-	const n = 1024
+// BenchmarkClone measures cloning a stack of benchSize elements, which
+// allocates the new stack and its backing array per call.
+func BenchmarkClone(b *testing.B) {
+	s := filled(benchSize)
 
-	s := NewWithCap[int](n)
-	for i := range n {
-		s.Push(i)
+	b.ReportAllocs()
+
+	for b.Loop() {
+		stackSink = s.Clone()
 	}
+}
+
+// BenchmarkSlice measures copying benchSize elements out to a plain slice,
+// which allocates exactly one backing array per call.
+func BenchmarkSlice(b *testing.B) {
+	s := filled(benchSize)
 
 	b.ReportAllocs()
 
 	for b.Loop() {
 		sliceSink = s.Slice()
 	}
+}
+
+// BenchmarkPush measures Push into a stack that grows from empty to benchSize,
+// so the amortized cost of reallocations is included, against a plain []int.
+// When the stack reaches benchSize it is cleared with the timer stopped.
+func BenchmarkPush(b *testing.B) {
+	b.Run("stack", func(b *testing.B) {
+		s := New[int]()
+
+		b.ReportAllocs()
+
+		i := 0
+		for b.Loop() {
+			if s.Len() == benchSize {
+				b.StopTimer()
+				s.Clear()
+				b.StartTimer()
+			}
+
+			s.Push(i)
+			i++
+		}
+
+		intSink = s.Len()
+	})
+
+	b.Run("slice", func(b *testing.B) {
+		var data []int
+
+		b.ReportAllocs()
+
+		i := 0
+		for b.Loop() {
+			if len(data) == benchSize {
+				b.StopTimer()
+				data = nil
+				b.StartTimer()
+			}
+
+			data = append(data, i)
+			i++
+		}
+
+		intSink = len(data)
+	})
+}
+
+// BenchmarkPushN measures one PushN of a 256-element batch into a stack with
+// room for 1024 batches, so no reallocation happens. When the stack is full it
+// is reset with the timer stopped.
+func BenchmarkPushN(b *testing.B) {
+	const (
+		batch  = 256
+		rounds = 1024
+	)
+
+	vs := filled(batch).Slice()
+	s := NewWithCap[int](rounds * batch)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if s.Len() == rounds*batch {
+			b.StopTimer()
+			// retain capacity so the next PushN does not reallocate
+			s.Reset()
+			b.StartTimer()
+		}
+
+		s.PushN(vs...)
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkPop measures one Pop, which must not allocate. When the stack
+// drains it is refilled to benchSize elements with the timer stopped, against
+// a plain []int.
+func BenchmarkPop(b *testing.B) {
+	vs := filled(benchSize).Slice()
+
+	b.Run("stack", func(b *testing.B) {
+		s := NewWithCap[int](benchSize)
+
+		b.ReportAllocs()
+
+		for b.Loop() {
+			if s.IsEmpty() {
+				b.StopTimer()
+				s.PushN(vs...)
+				b.StartTimer()
+			}
+
+			intSink, boolSink = s.Pop()
+		}
+
+		intSink = s.Len()
+	})
+
+	b.Run("slice", func(b *testing.B) {
+		data := make([]int, 0, benchSize)
+
+		b.ReportAllocs()
+
+		for b.Loop() {
+			if len(data) == 0 {
+				b.StopTimer()
+				data = append(data, vs...)
+				b.StartTimer()
+			}
+
+			top := len(data) - 1
+			intSink = data[top]
+			data = data[:top]
+		}
+
+		intSink = len(data)
+	})
+}
+
+// BenchmarkPopN measures one PopN of a 128-element batch, which allocates the
+// result slice once. When fewer than a batch remain the stack is refilled with
+// the timer stopped.
+func BenchmarkPopN(b *testing.B) {
+	const batch = 128
+
+	vs := filled(benchSize).Slice()
+	s := NewWithCap[int](benchSize)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		if s.Len() < batch {
+			b.StopTimer()
+			// retain capacity so the next PushN does not reallocate
+			s.Reset()
+			s.PushN(vs...)
+			b.StartTimer()
+		}
+
+		sliceSink = s.PopN(batch)
+	}
+
+	intSink = s.Len()
+}
+
+// BenchmarkPushPopChurn measures one Pop plus one Push at a steady size of 16
+// elements, which must not allocate for the stack, against a plain []int.
+func BenchmarkPushPopChurn(b *testing.B) {
+	const live = 16
+
+	b.Run("stack", func(b *testing.B) {
+		s := filled(live)
+
+		b.ReportAllocs()
+
+		i := live
+		for b.Loop() {
+			intSink, boolSink = s.Pop()
+			s.Push(i)
+			i++
+		}
+
+		intSink = s.Len()
+	})
+
+	b.Run("slice", func(b *testing.B) {
+		data := filled(live).Slice()
+
+		b.ReportAllocs()
+
+		i := live
+		for b.Loop() {
+			top := len(data) - 1
+			intSink = data[top]
+			data = data[:top]
+			data = append(data, i)
+			i++
+		}
+
+		intSink = len(data)
+	})
 }
