@@ -54,6 +54,7 @@ import "github.com/Nergous/structures/stack"
 | [`pqueue`](./pqueue) | Generic, heap-backed keyed priority queue with O(log n) priority updates and removal by key, stable for equal priorities. | [README](./pqueue/README.md) |
 | [`orderedmap`](./orderedmap) | Generic, insertion-ordered hash map with O(1) access to both ends and `MoveToBack`. | [README](./orderedmap/README.md) |
 | [`orderedset`](./orderedset) | Generic, insertion-ordered set with set algebra in a defined order and O(1) access to both ends. | [README](./orderedset/README.md) |
+| [`bitset`](./bitset) | Set of non-negative ints backed by a bit vector, with O(1) membership, ascending iteration, and word-wise set algebra. | [README](./bitset/README.md) |
 
 More containers are on the way.
 
@@ -75,6 +76,8 @@ Use Structures when the container itself is part of the program's meaning:
   or least-recently-used cache;
 - an ordered set when unique values must keep insertion order, as in
   deterministic output or unique work queues;
+- a bitset for dense small ints: visited marks, flags, sieves, and fast set
+  algebra over IDs;
 - future containers where a compact, documented abstraction reads better than
   open-coded slice manipulation.
 
@@ -137,7 +140,8 @@ Structures packages are designed around a few consistent rules:
   them as usable, remain valid after empty reads, failed removals, `Clear`, or
   `Reset`.
 - The zero value of `stack.Stack`, `queue.Queue`, `deque.Deque`, `set.Set`,
-  `orderedmap.Map`, and `orderedset.Set` is an empty, usable container.
+  `orderedmap.Map`, `orderedset.Set`, and `bitset.Set` is an empty, usable
+  container.
   `binheap.Heap` and `pqueue.Queue` need a constructor because they hold a
   comparator; their zero value reads as empty and panics on `Push`.
 - Nil-receiver panics share one message format: `pkg: Method on nil receiver`.

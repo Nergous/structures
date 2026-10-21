@@ -1,5 +1,5 @@
 // Package shared provides small helpers shared by the stack, queue, deque,
-// set, binheap, pqueue, orderedmap, and orderedset packages.
+// set, binheap, pqueue, orderedmap, orderedset, and bitset packages.
 //
 // It is internal to this module: the helpers exist to keep behavior and
 // messages identical across packages, not as public API.

@@ -20,6 +20,12 @@ they are always listed under **Breaking**.
 
 ### Added
 
+- `bitset`: set of non-negative ints backed by a bit vector. Membership, `Add`,
+  `Remove`, and `Max` run in O(1), iteration is ascending (`All`, `Backward`,
+  `Slice`, `Min`), set algebra and in-place `AddSet`, `RemoveSet`, and
+  `RetainSet` work 64 values per word, and the full memory block (`Cap`,
+  `Clear`, `Reset`, `Shrink`, `Clip`, `Grow`) is available, with capacity
+  bounding the largest value.
 - `set`: `RemoveFunc(del)` deletes every value for which `del` returns true
   and reports how many were removed, with the same contract as
   `orderedset.RemoveFunc`.

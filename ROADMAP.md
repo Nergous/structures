@@ -20,6 +20,8 @@ stay dependency-free, idiomatic, and easy to audit.
   ends and `MoveToBack`.
 - `orderedset`: generic, insertion-ordered set with set algebra in a defined
   order.
+- `bitset`: set of non-negative ints backed by a bit vector, with ascending
+  iteration and word-wise set algebra.
 
 These packages are the API baseline for naming, nil behavior, docs, examples,
 tests, and benchmarks. Releases and their changes are listed in
@@ -65,7 +67,6 @@ still feels incomplete as a general-purpose containers collection:
 
 | Package      | Type                  | Summary |
 | ------------ | --------------------- | ------- |
-| `bitset`     | `Bitset`              | Dense auto-growing bit vector with word-parallel set algebra. |
 | `sortedmap`  | `SortedMap[K, V]`     | Key-ordered map with navigation, rank/select, and ranges. |
 | `sortedset`  | `SortedSet[T]`        | Ordered set with algebra and navigation. |
 
