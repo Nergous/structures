@@ -10,6 +10,9 @@ built on the Go 1.23+ standard library, including range-over-func iterators.
 `structures` is a growing collection of generic container types. Each package is
 self-contained, dependency-free, and documented with runnable examples.
 
+**See every method animated step by step in the
+[visual field guide](https://nergous.github.io/structures/).**
+
 ## About Structures
 
 Structures aims for containers with predictable behavior, small APIs, and
@@ -164,6 +167,11 @@ render on godoc:
 go doc github.com/Nergous/structures/stack          # package overview
 go doc github.com/Nergous/structures/stack Stack    # a type and its methods
 ```
+
+The [visual field guide](https://nergous.github.io/structures/) animates every
+method of every package against its internals (backing arrays, ring buffer,
+heap sifts, holes and compaction, bit words); its source lives in
+[`docs/`](./docs).
 
 Release notes live in [`CHANGELOG.md`](./CHANGELOG.md).
 
