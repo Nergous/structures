@@ -1,6 +1,6 @@
 import { sizeReads } from "../core/common";
 import { freshInt, list, okRet, parseInt1, parseInts, randInts, rec } from "../core/rec";
-import type { MethodDef, StructureDef, ViewProps } from "../core/types";
+import type { MethodDef, StructureDef } from "../core/types";
 import {
   idx,
   iterate,
@@ -14,16 +14,12 @@ import {
   ringList,
   ringMemory,
   ringOf,
-  RingView,
   type RingS,
 } from "./ring";
 
 const R = "d *Deque[T]";
 const fresh = (s: RingS) => String(freshInt(live(s).map((c) => c.v)));
 
-function View({ f }: ViewProps<RingS>) {
-  return <RingView f={f} front="front" back="back" />;
-}
 
 function popNs(front: boolean): MethodDef<RingS> {
   const name = front ? "PopFrontN" : "PopBackN";
@@ -54,7 +50,7 @@ export const deque: StructureDef<RingS> = {
   tagline: "Push and pop at both ends in O(1). The front can walk backwards around the circle.",
   about: [
     "A Deque[T] uses the same ring buffer as queue. PushFront moves head one slot counter-clockwise (wrapping from 0 to cap-1) and writes there; PushBack writes at (head+len) % cap.",
-    "Because both ends just move an index, nothing is ever shifted. The live window can wrap around the end of the array — the highlighted arc on the circle shows it.",
+    "Because both ends just move an index, nothing is ever shifted. The live window can wrap around the end of the array — the len brace then splits in two.",
     "Growth copies the window front→back into a larger array, so after a grow the front is at index 0 again.",
   ],
   cost: [
@@ -72,7 +68,6 @@ export const deque: StructureDef<RingS> = {
     ["front", s.len ? s.data[s.head]!.v : "—"],
     ["back", s.len ? s.data[idx(s, s.len - 1)]!.v : "—"],
   ],
-  View,
   methods: [
     {
       name: "New",

@@ -1,9 +1,7 @@
 import { sizeReads } from "../core/common";
 import { appendCap } from "../core/gomem";
 import { nid, panic, parseInt1, rand, rec, type Rec } from "../core/rec";
-import type { Cell, MethodDef, StructureDef, Tone, ViewProps } from "../core/types";
-import { TreeView, treeHeight } from "../ui/tree";
-import { ArrayView, CapBar, Label, Stage, Tray } from "../ui/viz";
+import type { Cell, MethodDef, StructureDef, Tone } from "../core/types";
 
 type Mode = "min" | "max" | "func";
 
@@ -197,76 +195,6 @@ function heapifyMoved(r: Q) {
   for (let i = (n >> 1) - 1; i >= 0; i--) downMoved(r, i);
 }
 
-function View({ f }: ViewProps<PQS>) {
-  const s = f.s;
-  const n = s.data.length;
-  const W = Math.max(560, Math.min(2 ** Math.floor(Math.log2(Math.max(n, 1))), 16) * 66);
-  const th = treeHeight(Math.max(n, 1), 72, 40);
-  const ay = 50 + th + 56;
-  const cw = 54;
-  const cols = 12;
-  const rows = Math.max(1, Math.ceil(Math.max(s.cap, 1) / cols));
-  const H = Math.max(ay + rows * (cw + 20) + 30, 60 + Object.keys(s.index).length * 26);
-  const tone = (e: PE) => f.marks?.["c" + e.id];
-  const node = (e: PE) => ({
-    key: e.id,
-    label: (
-      <span className="pq">
-        <b>{e.k}</b>
-        <i>{e.v}</i>
-      </span>
-    ),
-    tone: tone(e),
-    title: `seq ${e.seq}`,
-  });
-  const ix = Object.entries(s.index).sort((a, b) => a[1] - b[1]);
-  const ixX = W + 50;
-  return (
-    <div className="view">
-      <Stage w={ixX + 130} h={H}>
-        <Label x={20} y={6} className="title">
-          {s.mode === "min" ? "least priority on top" : s.mode === "max" ? "greatest priority on top" : "closest to 50 on top"} · ties broken by push order
-        </Label>
-        <TreeView
-          x={20}
-          y={50}
-          w={W}
-          d={40}
-          lh={72}
-          wide={54}
-          nodes={s.data.map((e) => (e ? node(e) : null))}
-          held={s.held ? { node: node(s.held.e), at: s.held.at } : null}
-        />
-        <Label x={20} y={ay - 26} className="title">
-          data []entry — heap order
-        </Label>
-        <ArrayView
-          x={20}
-          y={ay}
-          cells={s.data}
-          cap={s.cap}
-          cw={cw}
-          cols={cols}
-          marks={f.marks}
-          ns="arr"
-          live={(i) => i < n}
-          hole={(i) => i < n && s.data[i] == null}
-          render={(c) => <span className="pq sm"><b>{(c as PE).k}</b><i>{c.v}</i></span>}
-        />
-        <Label x={ixX} y={6} className="title">
-          index map[K]int
-        </Label>
-        {ix.map(([k, i], j) => (
-          <Label key={k} x={ixX} y={34 + j * 26} className={"ix" + (f.marks?.["k" + k] ? " on" : "")}>
-            {k} → {i}
-          </Label>
-        ))}
-      </Stage>
-      <CapBar len={n} cap={s.cap} extra={<> · nextSeq <b>{s.nextSeq}</b></>} />
-      <Tray f={f} />
-    </div>
-  );
-}
 
 const ctor = (name: string, mode: Mode, kind: "new" | "cap" | "from"): MethodDef<PQS> => {
   const P = mode === "func" ? "P any" : "P cmp.Ordered";
@@ -327,7 +255,6 @@ export const pqueue: StructureDef<PQS> = {
     ["order", s.mode],
     ["top", s.data[0] ? lbl(s.data[0]) : "—"],
   ],
-  View,
   methods: [
     ctor("New", "min", "new"),
     ctor("NewWithCap", "min", "cap"),

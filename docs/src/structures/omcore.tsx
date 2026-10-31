@@ -1,10 +1,8 @@
 // Simulation of orderedmap.Map internals, shared by orderedmap and orderedset
 // (an orderedset is an orderedmap with struct{} values).
-import { AnimatePresence } from "motion/react";
 import { appendCap } from "../core/gomem";
 import { nid, parseInt1, rec, type Rec } from "../core/rec";
-import type { Cell, Frame, MethodDef, Tone } from "../core/types";
-import { ArrayView, Box, CapBar, Label, Pointer, Stage, Tray, slotPos, toneOf } from "../ui/viz";
+import type { Cell, MethodDef, Tone } from "../core/types";
 
 export const MIN_COMPACT = 16;
 
@@ -225,108 +223,3 @@ export function omMemory(recv: string, unit: string, cleanup?: (s: OMS) => void)
 }
 
 /** Entry strip + index panel (+ operand and result strips for orderedset). */
-export function OMView({ f, values }: { f: Frame<OMS>; values: boolean }) {
-  const s = f.s;
-  const cw = values ? 54 : 46;
-  const cols = values ? 9 : 11;
-  const x0 = 20;
-  const y0 = 44;
-  const rows = Math.max(1, Math.ceil(Math.max(s.cap, 1) / cols));
-  const geo = { x: x0, y: y0, cw, cols, gap: 6 };
-  const lens = rows * (cw + 20);
-  const live = liveEntries(s);
-  const ixX = x0 + cols * (cw + 6) + 30;
-  let y = y0 + lens + 36;
-  const opY = y;
-  if (s.b) y += 90;
-  const resY = y;
-  if (s.res) y += 90;
-  const H = Math.max(y + 10, y0 + 30 + live.length * 26);
-  const headPos = slotPos(s.head, geo);
-  return (
-    <div className="view">
-      <Stage w={ixX + 140} h={H}>
-        <Label x={x0} y={6} className="title">
-          entries []entry — insertion order, holes stay until compaction
-        </Label>
-        {s.cap === 0 && (
-          <Label x={x0} y={y0 + 10} className="note-spare">
-            entries == nil
-          </Label>
-        )}
-        <ArrayView
-          {...geo}
-          cells={s.entries}
-          cap={s.cap}
-          marks={f.marks}
-          live={(i) => i < s.entries.length}
-          hole={(i) => i < s.entries.length && !s.entries[i]}
-          render={(c) => {
-            const e = c as OE;
-            return values ? (
-              <span className="pq sm">
-                <b>{e.k}</b>
-                <i>{e.v}</i>
-              </span>
-            ) : (
-              e.k
-            );
-          }}
-        />
-        {live.length > 0 && <Pointer id="head" x={headPos.x} y={y0 - 26} label="head" dir="down" />}
-        <Label x={ixX} y={6} className="title">
-          index map[K]int
-        </Label>
-        {[...live].sort((a, b) => (a.k < b.k ? -1 : 1)).map((e, j) => (
-          <Label key={e.k} x={ixX} y={y0 + j * 26} className={"ix" + (f.marks?.["k" + e.k] ? " on" : "")}>
-            {e.k} → {posOf(s, e.k)}
-          </Label>
-        ))}
-        {s.b && (
-          <>
-            <Label x={x0} y={opY - 4} className="title">
-              other (operand, in its own order)
-            </Label>
-            <AnimatePresence>
-              {s.b.map((k, i) => (
-                <Box key={"b" + k} x={x0 + i * 46} y={opY + 18} w={40} h={36} tone={toneOf(f.marks, "b" + k) ?? "dim"}>
-                  {k}
-                </Box>
-              ))}
-            </AnimatePresence>
-          </>
-        )}
-        {s.res && (
-          <>
-            <Label x={x0} y={resY - 4} className="title">
-              {s.resLabel}
-            </Label>
-            <AnimatePresence>
-              {s.res.map((k, i) => (
-                <Box key={"r" + k} x={x0 + i * 46} y={resY + 18} w={40} h={36} tone={toneOf(f.marks, "r" + k) ?? "ok"}>
-                  {k}
-                </Box>
-              ))}
-            </AnimatePresence>
-            {!s.res.length && (
-              <Label x={x0} y={resY + 26} className="note-spare">
-                empty set
-              </Label>
-            )}
-          </>
-        )}
-      </Stage>
-      <CapBar
-        len={live.length}
-        cap={s.cap}
-        extra={
-          <>
-            {" "}
-            · len(entries) <b>{s.entries.length}</b> · holes <b>{s.holes}</b> · head <b>{s.head}</b>
-          </>
-        }
-      />
-      <Tray f={f} />
-    </div>
-  );
-}

@@ -1,6 +1,6 @@
 import { sizeReads } from "../core/common";
 import { PREDICATES, panic, parseInt1, rand, rec } from "../core/rec";
-import type { MethodDef, StructureDef, ViewProps } from "../core/types";
+import type { MethodDef, StructureDef } from "../core/types";
 import {
   liveEntries,
   km,
@@ -8,7 +8,6 @@ import {
   omMemory,
   omOf,
   omSet,
-  OMView,
   posOf,
   removeAt,
   removeFunc,
@@ -26,9 +25,6 @@ const kv = (s: OMS, first: boolean) => {
   return e ? `(${e.k}, ${e.v}, true)` : '("", 0, false)';
 };
 
-function View({ f }: ViewProps<OMS>) {
-  return <OMView f={f} values />;
-}
 
 const iter = (name: string, sig: string, doc: string, back: boolean, show: (k: string, v: number) => string): MethodDef<OMS> => ({
   name,
@@ -92,7 +88,6 @@ export const orderedmap: StructureDef<OMS> = {
       ["last", l[l.length - 1]?.k ?? "—"],
     ];
   },
-  View,
   methods: [
     {
       name: "New",

@@ -1,7 +1,6 @@
 import { appendCap } from "../core/gomem";
 import { PREDICATES, distinctInts, freshInt, list, okRet, panic, parseInt1, parseInts, rec, type Rec } from "../core/rec";
-import type { MethodDef, StructureDef, Tone, ViewProps } from "../core/types";
-import { CapBar, Tray } from "../ui/viz";
+import type { MethodDef, StructureDef, Tone } from "../core/types";
 
 export interface BitS {
   data: bigint[]; // full backing array: data.length is cap (in words)
@@ -89,61 +88,7 @@ function insert(r: B, v: number): boolean {
   return true;
 }
 
-function WordRows(p: { ws: bigint[]; len: number; marks?: Marks; prefix: string; label: string; y: number; dimSpare?: boolean }) {
-  const rows = [];
-  for (let i = 0; i < p.ws.length; i++) {
-    const w = p.ws[i];
-    const spare = i >= p.len;
-    const wt = p.prefix === "" ? p.marks?.["w" + i] : undefined;
-    const cells = [];
-    for (let b = 0; b < 64; b++) {
-      const v = i * 64 + b;
-      const on = ((w >> BigInt(b)) & ONE) === 1n;
-      const t = p.prefix === "" ? p.marks?.["b" + v] : p.marks?.[p.prefix + v];
-      cells.push(
-        <span
-          key={b}
-          className={"bit" + (on ? (spare ? " stale" : " on") : "") + (t ? " t-" + t : "") + (b % 8 === 0 ? " oct" : "")}
-          title={`${v}${spare && on ? " (stale)" : ""}`}
-        />,
-      );
-    }
-    rows.push(
-      <div key={i} className={"word" + (spare ? " spare" : "") + (wt ? " wt-" + wt : "")}>
-        <span className="word-l">
-          [{i}] <i>{i * 64}–{i * 64 + 63}</i>
-        </span>
-        <span className="bits">{cells}</span>
-        <code className="word-h">{spare ? (w ? "stale" : "spare") : hex(w)}</code>
-      </div>,
-    );
-  }
-  return (
-    <div className="words" style={{ transform: `translateY(${p.y}px)` }}>
-      <div className="words-t">{p.label}</div>
-      {rows}
-      {!p.ws.length && <div className="note-spare words-empty">no words</div>}
-    </div>
-  );
-}
 
-function View({ f }: ViewProps<BitS>) {
-  const s = f.s;
-  const bws = wordsOf(s.b);
-  return (
-    <div className="view">
-      <div className="stage-scroll">
-        <div className="bitstack">
-          <WordRows ws={s.data} len={s.len} marks={f.marks} prefix="" label="s.data []uint64 — value v is bit v%64 of word v/64 (hatched rows: spare capacity)" y={0} />
-          <WordRows ws={bws} len={bws.length} marks={f.marks} prefix="o" label="other" y={0} />
-          {s.res && <WordRows ws={s.res} len={s.res.length} marks={f.marks} prefix="r" label={s.resLabel} y={0} />}
-        </div>
-      </div>
-      <CapBar len={s.len} cap={s.data.length} extra={<> words · n <b>{s.n}</b> · Cap() <b>{s.data.length * 64}</b> values</>} />
-      <Tray f={f} />
-    </div>
-  );
-}
 
 const otherArg = { name: "other", kind: "ints" as const, def: (s: BitS) => s.b.join(", ") };
 const freshV = (s: BitS) => String(freshInt(valsOf(used(s)), 0, 190));
@@ -207,7 +152,6 @@ export const bitset: StructureDef<BitS> = {
       ["max", vs[vs.length - 1] ?? "—"],
     ];
   },
-  View,
   methods: [
     {
       name: "New",

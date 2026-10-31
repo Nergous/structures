@@ -11,9 +11,7 @@ import {
   rec,
   type Rec,
 } from "../core/rec";
-import type { Cell, MethodDef, StructureDef, Tone, ViewProps } from "../core/types";
-import { TreeView, treeHeight } from "../ui/tree";
-import { ArrayView, CapBar, Label, Stage, Tray } from "../ui/viz";
+import type { Cell, MethodDef, StructureDef, Tone } from "../core/types";
 
 type Mode = "min" | "max" | "func";
 
@@ -128,44 +126,6 @@ function rebuildCheaper(n: number, k: number) {
   return 2 * (n + k) < k * (n ? Math.floor(Math.log2(n)) + 1 : 0);
 }
 
-function View({ f }: ViewProps<HeapS>) {
-  const s = f.s;
-  const n = s.data.length;
-  const W = Math.max(560, Math.min(2 ** Math.floor(Math.log2(Math.max(n, 1))), 16) * 52);
-  const th = treeHeight(Math.max(n, 1), 70, 42);
-  const cw = 40;
-  const cols = 16;
-  const ay = 40 + th + 50;
-  const rows = Math.max(1, Math.ceil(Math.max(s.cap, 1) / cols));
-  const H = ay + rows * (cw + 20) + 30;
-  const tone = (c: Cell) => f.marks?.["c" + c.id];
-  return (
-    <div className="view">
-      <Stage w={Math.max(W + 40, cols * 46 + 40)} h={H}>
-        <Label x={20} y={6} className="title">
-          {s.mode === "min" ? "min-heap · least on top" : s.mode === "max" ? "max-heap · greatest on top" : "custom · closest to 50 on top"}
-        </Label>
-        {n === 0 && (
-          <Label x={20} y={50} className="note-spare">
-            empty heap
-          </Label>
-        )}
-        <TreeView
-          x={20}
-          y={40}
-          w={W}
-          nodes={s.data.map((c) => ({ key: c.id, label: c.v, tone: tone(c) }))}
-        />
-        <Label x={20} y={ay - 26} className="title">
-          the same heap as a slice: children of i are 2i+1 and 2i+2
-        </Label>
-        <ArrayView x={20} y={ay} cells={s.data} cap={s.cap} cw={cw} cols={cols} marks={f.marks} ns="arr" />
-      </Stage>
-      <CapBar len={n} cap={s.cap} />
-      <Tray f={f} />
-    </div>
-  );
-}
 
 const ctor = (name: string, mode: Mode, kind: "new" | "cap" | "from"): MethodDef<HeapS> => {
   const T = mode === "func" ? "T any" : "T cmp.Ordered";
@@ -237,7 +197,6 @@ export const binheap: StructureDef<HeapS> = {
     ["order", s.mode],
     ["top", s.data.length ? s.data[0].v : "—"],
   ],
-  View,
   methods: [
     ctor("New", "min", "new"),
     ctor("NewWithCap", "min", "cap"),

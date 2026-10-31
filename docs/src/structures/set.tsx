@@ -1,8 +1,6 @@
-import { AnimatePresence } from "motion/react";
 import { sizeReads } from "../core/common";
 import { distinctInts, freshInt, list, parseInts, PREDICATES, rec, parseInt1, type Rec } from "../core/rec";
-import type { MethodDef, StructureDef, Tone, ViewProps } from "../core/types";
-import { Box, Label, Stage, Tray, toneOf } from "../ui/viz";
+import type { MethodDef, StructureDef, Tone } from "../core/types";
 
 export interface SetS {
   a: number[]; // receiver s (kept sorted only for stable drawing)
@@ -43,105 +41,6 @@ function setOther(r: S, raw: string) {
   r.s.res = null;
 }
 
-function View({ f }: ViewProps<SetS>) {
-  const s = f.s;
-  const W = 680;
-  const cy = 150;
-  const ax = 245;
-  const bx = 435;
-  const rad = 135;
-  const onlyA = sortNum(s.a.filter((v) => !has(s.b, v)));
-  const both = sortNum(s.a.filter((v) => has(s.b, v)));
-  const onlyB = sortNum(s.b.filter((v) => !has(s.a, v)));
-  const place = (xs: number[], cx: number, cols: number) =>
-    xs.map((v, k) => {
-      const rows = Math.ceil(xs.length / cols);
-      const row = Math.floor(k / cols);
-      const inRow = Math.min(cols, xs.length - row * cols);
-      const col = k % cols;
-      return { v, x: cx + (col - (inRow - 1) / 2) * 46 - 20, y: cy + (row - (rows - 1) / 2) * 46 - 20 };
-    });
-  const pts = [...place(onlyA, 175, 3), ...place(both, 340, 2), ...place(onlyB, 505, 3)];
-  const gy = 330;
-  const gw = (W - 40) / G;
-  const groups: number[][] = Array.from({ length: G }, () => []);
-  for (const v of sortNum(s.a)) groups[grp(v)].push(v);
-  const maxG = Math.max(1, ...groups.map((g) => g.length));
-  const ry = gy + 40 + maxG * 30 + 40;
-  const H = s.res ? ry + 70 : ry;
-  return (
-    <div className="view">
-      <Stage w={W} h={H}>
-        <svg className="venn" width={W} height={cy * 2 + 20}>
-          <circle cx={ax} cy={cy} r={rad} className={"venn-a" + (f.marks?.A ? " on" : "")} />
-          <circle cx={bx} cy={cy} r={rad} className={"venn-b" + (f.marks?.B ? " on" : "")} />
-        </svg>
-        <Label x={ax - rad + 10} y={8} className="venn-l">
-          s
-        </Label>
-        <Label x={bx + rad - 50} y={8} className="venn-l b">
-          other
-        </Label>
-        <AnimatePresence>
-          {pts.map((p) => {
-            const inA = has(s.a, p.v);
-            return (
-              <Box key={"v" + p.v} x={p.x} y={p.y} w={40} h={40} round tone={toneOf(f.marks, "v" + p.v) ?? (inA ? undefined : "dim")}>
-                {p.v}
-              </Box>
-            );
-          })}
-        </AnimatePresence>
-        <Label x={20} y={gy - 4} className="title">
-          inside s: map[T]struct{} — values grouped by hash (illustrative)
-        </Label>
-        {s.nilMap && (
-          <Label x={20} y={gy + 20} className="note-spare">
-            m == nil — no map allocated (reads still work)
-          </Label>
-        )}
-        {groups.map((_, i) => (
-          <div
-            key={"g" + i}
-            className={"bucket" + (f.marks?.["g" + i] ? " st-" + f.marks["g" + i] : "")}
-            style={{ transform: `translate(${20 + i * gw}px, ${gy + 20}px)`, width: gw - 6, height: maxG * 30 + 22 }}
-          >
-            <span className="bucket-i">g{i}</span>
-          </div>
-        ))}
-        <AnimatePresence>
-          {groups.flatMap((g, i) =>
-            g.map((v, k) => (
-              <Box key={"m" + v} x={20 + i * gw + (gw - 6) / 2 - 18} y={gy + 38 + k * 30} w={36} h={24} small tone={toneOf(f.marks, "v" + v)}>
-                {v}
-              </Box>
-            )),
-          )}
-        </AnimatePresence>
-        {s.res && (
-          <>
-            <Label x={20} y={ry - 4} className="title">
-              {s.resLabel}
-            </Label>
-            <AnimatePresence>
-              {sortNum(s.res).map((v, k) => (
-                <Box key={"r" + v} x={20 + k * 46} y={ry + 18} w={40} h={36} tone={toneOf(f.marks, "r" + v) ?? "ok"}>
-                  {v}
-                </Box>
-              ))}
-            </AnimatePresence>
-            {!s.res.length && (
-              <Label x={20} y={ry + 26} className="note-spare">
-                empty set
-              </Label>
-            )}
-          </>
-        )}
-      </Stage>
-      <Tray f={f} />
-    </div>
-  );
-}
 
 const otherArg = { name: "other", kind: "ints" as const, def: (s: SetS) => s.b.join(", ") };
 const valsArg = (n = 3) => ({ name: "vs", kind: "ints" as const, def: (s: SetS) => [...s.a.slice(0, n - 1), freshInt(s.a)].join(", ") });
@@ -210,7 +109,6 @@ export const set: StructureDef<SetS> = {
     ["len", s.a.length],
     ["other", s.b.length],
   ],
-  View,
   methods: [
     {
       name: "New",

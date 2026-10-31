@@ -26,14 +26,16 @@ for example GitHub Pages via an Actions workflow that uploads `docs/dist`.
 
 ## Deep links
 
-`?call=Push&args=42#/stack` runs a call on load; `pre=Push:5;Push:9` runs
-setup calls first (arguments separated by `|`), `frame=N` jumps to a step,
-and `still` makes animations instant (for screenshots).
+`?seq=Push:42;Pop#/stack` replays calls on load (arguments separated by
+`|`), `frame=N` stops the last call at a step, `all` opens the full method
+list, and `still` turns animations off (for screenshots).
 
 ## Layout
 
 - `src/core` — frame recorder, Go memory models, player, shared method sets.
-- `src/ui` — animated primitives (boxes, slots, pointers, tree, tray).
-- `src/structures` — one simulation + view per package; `ring.tsx` and
-  `omcore.tsx` mirror `internal/ring` and `orderedmap` internals shared by
-  their siblings.
+- `src/structures` — one simulation per package; `ring.tsx` and `omcore.tsx`
+  mirror `internal/ring` and `orderedmap` internals shared by their siblings.
+- `src/mem` — the memory views: the struct in the stack frame, backing
+  arrays and maps on the heap (`kit.tsx` primitives, `views.tsx` per
+  structure, `meta.ts` console names and quick methods).
+- `src/App.tsx` — page shell: tabs, step slider, call console.

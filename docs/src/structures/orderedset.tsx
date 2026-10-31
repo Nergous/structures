@@ -1,6 +1,6 @@
 import { sizeReads } from "../core/common";
 import { PREDICATES, distinctInts, freshInt, list, parseInt1, parseInts, rec, type Rec } from "../core/rec";
-import type { MethodDef, StructureDef, Tone, ViewProps } from "../core/types";
+import type { MethodDef, StructureDef, Tone } from "../core/types";
 import {
   append,
   km,
@@ -10,7 +10,6 @@ import {
   omMemory,
   omOf,
   omSet,
-  OMView,
   posOf,
   removeAt,
   removeFunc,
@@ -34,9 +33,6 @@ function setOther(r: S, raw: string) {
   r.s.res = null;
 }
 
-function View({ f }: ViewProps<OMS>) {
-  return <OMView f={f} values={false} />;
-}
 
 const otherArg = { name: "other", kind: "ints" as const, def: (s: OMS) => (s.b ?? []).join(", ") };
 const markEntry = (r: S, k: string, t: Tone): Marks => {
@@ -149,7 +145,6 @@ export const orderedset: StructureDef<OMS> = {
       ["last", k[k.length - 1] ?? "—"],
     ];
   },
-  View,
   methods: [
     {
       name: "New",

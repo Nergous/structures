@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { MotionConfig } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePlayer } from "./core/player";
-import { GROUP_LABEL, type Group, type MethodDef, type StructureDef } from "./core/types";
+import { GoPanic } from "./core/rec";
+import { GROUP_LABEL, type Frame, type Group, type MethodDef, type StructureDef } from "./core/types";
+import { Mem, hex } from "./mem/kit";
+import { META, type Meta } from "./mem/meta";
 import { STRUCTURES } from "./structures";
-import { SpeedCtx } from "./ui/viz";
 
 const REPO = "https://github.com/Nergous/structures";
-/** ?still disables motion (used for static screenshots). */
-const STILL = new URLSearchParams(location.search).has("still");
+const params = new URLSearchParams(location.search);
+/** ?still makes motion instant (static screenshots). */
+const STILL = params.has("still");
+const BASE = 0xc000010000;
+const addrOf = (gen: number) => BASE + gen * 0x400;
+const GROUPS: Group[] = ["construct", "read", "iterate", "copy", "mutate", "algebra", "memory"];
 
 function useHashId(): [string, (id: string) => void] {
   const read = () => location.hash.replace(/^#\/?/, "") || STRUCTURES[0].id;
@@ -23,161 +28,324 @@ function useHashId(): [string, (id: string) => void] {
 export default function App() {
   const [id, setId] = useHashId();
   const def = STRUCTURES.find((d) => d.id === id) ?? STRUCTURES[0];
+  const [addrs, setAddrs] = useState(true);
   return (
-    <div className="app">
-      <aside className="rail">
-        <a className="brand" href={REPO} target="_blank" rel="noreferrer">
-          <span className="brand-mark" aria-hidden>
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
-          <span>
-            <b>structures</b>
-            <small>a visual field guide</small>
-          </span>
-        </a>
-        <nav>
-          {STRUCTURES.map((d, i) => (
-            <button
-              key={d.id}
-              className={"nav-i" + (d.id === def.id ? " on" : "")}
-              onClick={() => setId(d.id)}
-            >
-              <span className="nav-n">{String(i + 1).padStart(2, "0")}</span>
-              <span className="nav-t">{d.title}</span>
-              <span className="nav-k">{d.kind}</span>
-            </button>
-          ))}
-        </nav>
-        <p className="rail-foot">
-          Every frame is simulated from the Go source: same growth policy, same
-          sift order, same compaction rule.
-          <br />
-          <a href={REPO} target="_blank" rel="noreferrer">
-            github.com/Nergous/structures ↗
+    <Mem.Provider value={{ addrs, still: STILL }}>
+      <div className={"app" + (STILL ? " still" : "")}>
+        <header className="top">
+          <a className="brand" href={REPO} target="_blank" rel="noreferrer">
+            <span className="mark" />
+            structures
           </a>
-        </p>
-      </aside>
-      <Workbench key={def.id} def={def as StructureDef<unknown>} />
-    </div>
+          <nav className="tabs">
+            {STRUCTURES.map((d) => (
+              <button key={d.id} className={d.id === def.id ? "on" : ""} onClick={() => setId(d.id)}>
+                {d.id}
+              </button>
+            ))}
+          </nav>
+          <a className="gh" href={REPO} target="_blank" rel="noreferrer">
+            GitHub ↗
+          </a>
+        </header>
+        <Workbench key={def.id} def={def} meta={META[def.id]} addrs={addrs} setAddrs={setAddrs} />
+      </div>
+    </Mem.Provider>
   );
 }
 
-function Workbench<S>({ def }: { def: StructureDef<S> }) {
-  const p = usePlayer(def);
-  const [sel, setSel] = useState<MethodDef<S> | null>(null);
-  const View = def.View;
+/* ---------- console parsing ---------- */
 
-  // Deep link: ?call=Push&args=42&frame=1 runs a call on load.
-  const [boot, setBoot] = useState(() => new URLSearchParams(location.search));
-  useEffect(() => {
-    const name = boot.get("call");
-    if (!name) return;
-    const pre = boot.get("pre");
-    let s = p.state;
-    if (pre) {
-      // pre=Push:5;Push:9 seeds state before the shown call
-      for (const step of pre.split(";")) {
-        const [n, a = ""] = step.split(":");
-        const pm = def.methods.find((x) => x.name === n);
-        if (!pm) continue;
-        const fr = pm.run(s, a ? a.split("|") : []);
-        s = fr[fr.length - 1].s;
-      }
+const norm = (x: string) => x.replace(/\s+/g, "");
+
+function defaults<S>(m: MethodDef<S>, s: S): string[] {
+  return (m.args ?? []).map((a) => (typeof a.def === "function" ? a.def(s) : (a.def ?? a.options?.[0] ?? "")));
+}
+
+function parseCall<S>(def: StructureDef<S>, src: string, s: S): { m: MethodDef<S>; args: string[] } | string {
+  const t = src.trim().replace(/^\w+\./, "");
+  const mt = t.match(/^(\w+)\s*(?:\(([\s\S]*)\))?\s*$/) ?? t.match(/^(\w+)\s+([\s\S]*)$/);
+  if (!mt) return "could not parse that — try Name(args)";
+  const m = def.methods.find((x) => x.name.toLowerCase() === mt[1].toLowerCase());
+  if (!m) return `${def.id} has no method ${mt[1]}`;
+  const ad = m.args ?? [];
+  const inner = (mt[2] ?? "").trim();
+  if (!ad.length) return { m, args: [] };
+  if (!inner) return { m, args: defaults(m, s) };
+  const parts = ad.length === 1 ? [inner] : inner.split(",").map((x) => x.trim());
+  const args = ad.map((a, i) => {
+    let v = (parts[i] ?? "").replace(/^"(.*)"$/, "$1");
+    if (a.kind === "choice") v = a.options!.find((o) => norm(o) === norm(v)) ?? v;
+    return v;
+  });
+  const bad = ad.findIndex((a, i) => a.kind === "choice" && !a.options!.includes(args[i]));
+  if (bad >= 0) return `${m.name}: choose one of ${ad[bad].options!.join(" | ")}`;
+  return { m, args };
+}
+
+const show = <S,>(m: MethodDef<S>, args: string[]) =>
+  `${m.name}(${(m.args ?? []).map((a, i) => (a.kind === "key" ? JSON.stringify(args[i]) : args[i])).join(", ")})`;
+
+/* ---------- array generations (for addresses and the old-array ghost) ---------- */
+
+function gens<S>(meta: Meta<S>, m: MethodDef<S>, pre: S, frames: Frame<S>[], g0: number): number[] {
+  let g = g0;
+  let prev = meta.capOf(pre);
+  return frames.map((f, i) => {
+    const cap = meta.capOf(f.s);
+    if (i === 0 && m.group === "construct" && cap > 0) g++;
+    else if (cap !== prev && cap > 0 && m.name !== "Clip") g++;
+    prev = cap;
+    return g;
+  });
+}
+
+interface Entry {
+  text: string;
+  ret?: string;
+  err?: string;
+  g0: number;
+  g1: number;
+}
+
+let booted = false; // StrictMode runs effects twice in dev
+
+function Workbench<S>({ def, meta, addrs, setAddrs }: { def: StructureDef<S>; meta: Meta<S>; addrs: boolean; setAddrs: (b: boolean) => void }) {
+  const p = usePlayer(def);
+  const [log, setLog] = useState<Entry[]>([]);
+  const [src, setSrc] = useState("");
+  const [all, setAll] = useState(false);
+  const [hover, setHover] = useState<MethodDef<S> | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const logBox = useRef<HTMLDivElement>(null);
+  const g = log.length ? log[log.length - 1].g1 : 0;
+
+  const exec = (text: string, from: S, prev: Entry[]): [Entry[], S] => {
+    const g0 = prev.length ? prev[prev.length - 1].g1 : 0;
+    const parsed = parseCall(def, text, from);
+    if (typeof parsed === "string") return [[...prev, { text: text.trim(), err: parsed, g0, g1: g0 }], from];
+    const { m, args } = parsed;
+    const shown = show(m, args);
+    let fr: Frame<S>[];
+    try {
+      fr = m.run(from, args);
+    } catch (e) {
+      p.runFrom(from, m, args);
+      const msg = e instanceof GoPanic ? e.message : String(e);
+      return [[...prev, { text: shown, err: "panic: " + msg, g0, g1: g0 }], from];
     }
-    const m = def.methods.find((x) => x.name === name);
-    setBoot(new URLSearchParams());
-    if (!m) return;
-    const args = boot.get("args")?.split("|") ?? [];
-    setSel(m);
-    p.runFrom(s, m, args);
-    const fi = Number(boot.get("frame"));
-    if (boot.has("frame")) setTimeout(() => p.jump(fi), 0);
+    const gs = gens(meta, m, from, fr, g0);
+    p.runFrom(from, m, args);
+    return [[...prev, { text: shown, ret: fr[fr.length - 1].ret, g0, g1: gs[gs.length - 1] }], fr[fr.length - 1].s];
+  };
+
+  const submit = (text: string) => {
+    if (!text.trim()) return;
+    setLog(exec(text, p.state, log)[0]);
+    setSrc("");
+  };
+
+  const runMethod = (m: MethodDef<S>) => {
+    const call = show(m, defaults(m, p.state));
+    setLog(exec(call, p.state, log)[0]);
+    setSrc(m.args?.length ? call : "");
+  };
+
+  const undo = () => {
+    if (!p.canUndo) return;
+    p.undo();
+    setLog((l) => {
+      const i = l.map((e) => !e.err).lastIndexOf(true);
+      return i < 0 ? l : l.slice(0, i);
+    });
+  };
+
+  // ?seq=Push:42;Pop replays calls on load (args split by |); &frame=N stops at a step.
+  useEffect(() => {
+    const seq = params.get("seq");
+    if (!seq || booted) return;
+    booted = true;
+    let s = p.state;
+    let l: Entry[] = [];
+    for (const step of seq.split(";")) {
+      const [n, a] = step.split(":");
+      [l, s] = exec(a === undefined ? n : `${n}(${a.split("|").join(", ")})`, s, l);
+    }
+    setLog(l);
+    if (params.has("all")) setAll(true);
+    const fi = params.get("frame");
+    if (fi) setTimeout(() => p.jump(Number(fi)), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    const el = logBox.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log.length]);
+
+  useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if ((e.target as HTMLElement).tagName === "INPUT") return;
       if (e.key === " ") {
         e.preventDefault();
         p.toggle();
       } else if (e.key === "ArrowRight") p.step(1);
       else if (e.key === "ArrowLeft") p.step(-1);
-      else if ((e.ctrlKey || e.metaKey) && e.key === "z") p.undo();
+      else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) input.current?.focus();
     };
     addEventListener("keydown", on);
     return () => removeEventListener("keydown", on);
-  }, [p]);
+  });
 
-  const stats = def.stats(p.frame.s);
+  const cur = log[log.length - 1];
+  const pre = (p.history[p.history.length - 1] ?? p.state) as S;
+  const lastM = p.call ? def.methods.find((m) => m.name === p.call!.method) : undefined;
+  const frameGens = useMemo(
+    () => (lastM && cur && !cur.err ? gens(meta, lastM, pre, p.frames, cur.g0) : p.frames.map(() => g)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [p.frames, cur],
+  );
+  const gen = frameGens[p.idx] ?? g;
+  const changeAt = cur ? frameGens.findIndex((x) => x !== cur.g0) : -1;
+  const ghostS = changeAt >= 0 && p.idx >= changeAt ? ((changeAt === 0 ? pre : p.frames[changeAt - 1].s) as S) : null;
+  const ghost = ghostS && meta.capOf(ghostS) > 0 && meta.capOf(p.frame.s) > 0 ? meta.ghost(ghostS) : null;
+
+  const f = p.frame;
+  const View = meta.View;
+  const info = hover ?? lastM ?? null;
+  const groups = GROUPS.map((gr) => [gr, def.methods.filter((m) => m.group === gr)] as const).filter(([, ms]) => ms.length);
+  const quick = meta.quick.map((n) => def.methods.find((m) => m.name === n)!).filter(Boolean);
+
+  const chip = (m: MethodDef<S>) => (
+    <button key={m.name} type="button" onClick={() => runMethod(m)} onMouseEnter={() => setHover(m)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(m)} onBlur={() => setHover(null)}>
+      {m.name}
+      <i>({(m.args ?? []).map((a) => a.name).join(", ")})</i>
+    </button>
+  );
 
   return (
     <main className="main">
-      <header className="head">
-        <div className="head-pkg">
-          import "github.com/Nergous/structures/<b>{def.id}</b>"
-        </div>
-        <div className="head-row">
-          <h1>{def.title}</h1>
-          <span className="head-kind">{def.kind}</span>
-        </div>
-        <p className="head-tag">{def.tagline}</p>
-      </header>
-
-      <section className="work">
-        <div className="work-l">
-          <div className="stage-card">
-            <div className="stage-top">
-              <div className="stats">
-                {stats.map(([k, v]) => (
-                  <span key={k} className="stat">
-                    <i>{k}</i>
-                    <b>{v}</b>
-                  </span>
-                ))}
-              </div>
-              <div className="call">
-                {p.call ? (
-                  <code>
-                    {varName(def.id)}.{p.call.method}(
-                    <em>{p.call.args.join(", ")}</em>)
-                  </code>
-                ) : (
-                  <code className="dim">// no call yet</code>
-                )}
-              </div>
-            </div>
-            <MotionConfig reducedMotion="user">
-              <SpeedCtx.Provider value={STILL ? 1000 : p.speed}>
-                <View f={p.frame} />
-              </SpeedCtx.Provider>
-            </MotionConfig>
+      <section className="head">
+        <div>
+          <div className="pkg">
+            import "github.com/Nergous/structures/<b>{def.id}</b>"
           </div>
-          <Narration p={p} />
+          <h1>{meta.type}</h1>
+          <p>{def.tagline}</p>
         </div>
-        <div className="work-r">
-          <MethodPanel
-            def={def}
-            state={p.state}
-            sel={sel}
-            onSelect={setSel}
-            onRun={(m, a) => p.run(m, a)}
-          />
+        <label className="switch">
+          <input type="checkbox" checked={addrs} onChange={(e) => setAddrs(e.target.checked)} />
+          <span />
+          addresses
+        </label>
+      </section>
+
+      <View f={f} base={addrOf(gen)} />
+
+      {ghost && (
+        <section className="ghost">
+          <div className="ghost-l">
+            old array{addrs && cur ? ` at ${hex(addrOf(cur.g0))}` : ""} — nothing points here any more; the GC will free it
+          </div>
+          <div className="ghost-r">
+            {ghost.map((t, i) => (
+              <span key={i}>{t}</span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className={"steps" + (f.panic ? " panic" : "")}>
+        <button className="play" onClick={p.toggle} disabled={p.frames.length < 2} aria-label={p.playing ? "pause" : "play"} title="play / pause (space)">
+          {p.playing ? "❚❚" : "▶"}
+        </button>
+        <input type="range" min={0} max={Math.max(p.frames.length - 1, 0)} value={p.idx} onChange={(e) => p.jump(Number(e.target.value))} disabled={p.frames.length < 2} aria-label="step" title="← → step" />
+        <span className="stepn">
+          {p.idx + 1}/{p.frames.length}
+        </span>
+        <p className="note" key={p.idx + f.note}>
+          {p.call ? f.note : "Type a call below or click a method. Every step of it plays here."}
+        </p>
+        {f.out?.length ? (
+          <div className="out">
+            <span>{f.outLabel ?? "returned"}</span>
+            {f.out.map((o) => (
+              <code key={o.id} className={o.tone ? "t-" + o.tone : ""}>
+                {o.t}
+              </code>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="console" onClick={(e) => e.target === e.currentTarget && input.current?.focus()}>
+        <div className="log" ref={logBox}>
+          <div className="line init">{meta.init}</div>
+          {log.map((e, i) => (
+            <div key={i} className={"line" + (i === log.length - 1 ? " last" : "")}>
+              <span className="in">
+                {meta.v}.{e.text}
+              </span>
+              {e.err ? <span className="err">{e.err}</span> : e.ret ? <span className="ret">// {e.ret}</span> : null}
+            </div>
+          ))}
         </div>
+        <form
+          className="prompt"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(src);
+          }}
+        >
+          <span className="ps">{meta.v}.</span>
+          <input ref={input} value={src} onChange={(e) => setSrc(e.target.value)} placeholder={quick[0] ? show(quick[0], defaults(quick[0], p.state)) : ""} spellCheck={false} aria-label="call" />
+          <kbd>enter</kbd>
+        </form>
+        <div className="hint">
+          {info ? (
+            <>
+              <code>{info.sig}</code>
+              <span>{info.doc}</span>
+              <em>{info.cost}</em>
+            </>
+          ) : (
+            <span>Hover a method to see its signature. Click it to run with sample arguments, then edit the call above and press enter.</span>
+          )}
+        </div>
+        <div className="chips">
+          {quick.map(chip)}
+          <button type="button" className="more" onClick={() => setAll((a) => !a)}>
+            {all ? "fewer" : `all ${def.methods.length} methods`} {all ? "▴" : "▾"}
+          </button>
+          <button type="button" className="undo" onClick={undo} disabled={!p.canUndo} title="ctrl z">
+            undo
+          </button>
+        </div>
+        {all && (
+          <div className="all">
+            {groups.map(([gr, ms]) => (
+              <div key={gr} className="grp">
+                <h3>{GROUP_LABEL[gr]}</h3>
+                <div className="chips flat">{ms.map(chip)}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="about">
-        <div className="about-t">
+        <div>
           <h2>How it works</h2>
           {def.about.map((t, i) => (
             <p key={i}>{t}</p>
           ))}
         </div>
-        <div className="about-c">
+        <div>
           <h2>Cost</h2>
           <table>
             <tbody>
@@ -189,204 +357,14 @@ function Workbench<S>({ def }: { def: StructureDef<S> }) {
               ))}
             </tbody>
           </table>
-          <a
-            className="about-src"
-            href={`${REPO}/tree/main/${def.id}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Read the package source ↗
+          <a href={`${REPO}/tree/main/${def.id}`} target="_blank" rel="noreferrer">
+            package source ↗
           </a>
         </div>
       </section>
+      <footer className="foot">
+        Every step is simulated from the Go source: the same growth policy, sift order, and compaction rule. Addresses are illustrative.
+      </footer>
     </main>
-  );
-}
-
-const varName = (id: string) =>
-  ({ stack: "s", queue: "q", deque: "d", set: "s", binheap: "h", pqueue: "q", orderedmap: "m", orderedset: "s", bitset: "b" })[id] ?? "x";
-
-function Narration<S>({ p }: { p: ReturnType<typeof usePlayer<S>> }) {
-  const f = p.frame;
-  const last = p.idx === p.frames.length - 1;
-  return (
-    <div className={"narr" + (f.panic ? " panic" : "")}>
-      <div className="narr-ctl">
-        <button onClick={() => p.step(-1)} disabled={p.idx === 0} title="Previous step (←)">
-          ‹
-        </button>
-        <button className="play" onClick={p.toggle} title="Play / pause (space)">
-          {p.playing ? "❚❚" : last && p.frames.length > 1 ? "↺" : "▶"}
-        </button>
-        <button onClick={() => p.step(1)} disabled={last} title="Next step (→)">
-          ›
-        </button>
-        <label className="speed" title="Playback speed">
-          <input
-            type="range"
-            min={0.25}
-            max={3}
-            step={0.25}
-            value={p.speed}
-            onChange={(e) => p.setSpeed(Number(e.target.value))}
-          />
-          <span>{p.speed}×</span>
-        </label>
-        <button className="undo" onClick={p.undo} disabled={!p.canUndo} title="Undo last call (Ctrl+Z)">
-          undo
-        </button>
-      </div>
-      <div className="narr-body">
-        <div className="narr-dots">
-          {p.frames.map((_, i) => (
-            <button
-              key={i}
-              className={"dot" + (i === p.idx ? " on" : i < p.idx ? " past" : "")}
-              onClick={() => p.jump(i)}
-              aria-label={`step ${i + 1}`}
-            />
-          ))}
-          <span className="narr-count">
-            step {p.idx + 1}/{p.frames.length}
-          </span>
-        </div>
-        <p className="narr-note" key={p.idx + f.note}>
-          {f.note}
-        </p>
-        {f.ret !== undefined && f.ret !== "" && (
-          <div className="narr-ret">
-            <span>returns</span>
-            <code>{f.ret}</code>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const GROUP_ORDER: Group[] = ["construct", "read", "iterate", "copy", "mutate", "algebra", "memory"];
-
-function MethodPanel<S>(props: {
-  def: StructureDef<S>;
-  state: S;
-  sel: MethodDef<S> | null;
-  onSelect: (m: MethodDef<S>) => void;
-  onRun: (m: MethodDef<S>, args: string[]) => void;
-}) {
-  const { def, state, sel } = props;
-  const groups = useMemo(() => {
-    const g = new Map<Group, MethodDef<S>[]>();
-    for (const m of def.methods) {
-      if (!g.has(m.group)) g.set(m.group, []);
-      g.get(m.group)!.push(m);
-    }
-    return GROUP_ORDER.filter((k) => g.has(k)).map((k) => [k, g.get(k)!] as const);
-  }, [def]);
-
-  const [args, setArgs] = useState<string[]>([]);
-  const fillDefaults = (m: MethodDef<S>, s: S) =>
-    setArgs(
-      (m.args ?? []).map((a) =>
-        typeof a.def === "function" ? a.def(s) : (a.def ?? a.options?.[0] ?? ""),
-      ),
-    );
-
-  const pick = (m: MethodDef<S>) => {
-    props.onSelect(m);
-    fillDefaults(m, state);
-    if (!m.args?.length) props.onRun(m, []);
-  };
-
-  const runSel = () => {
-    if (!sel) return;
-    props.onRun(sel, args);
-  };
-
-  // Refresh generated defaults (fresh values) after each call.
-  useEffect(() => {
-    if (sel) fillDefaults(sel, state);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
-
-  return (
-    <div className="methods">
-      {groups.map(([g, ms]) => (
-        <div key={g} className="mg">
-          <h3>{GROUP_LABEL[g]}</h3>
-          <div className="mg-list">
-            {ms.map((m) => (
-              <button
-                key={m.name}
-                className={"chip g-" + g + (sel?.name === m.name ? " on" : "")}
-                onClick={() => pick(m)}
-                title={m.doc}
-              >
-                {m.name}
-                {m.args?.length ? <i>…</i> : null}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      <div className={"detail" + (sel ? " on" : "")}>
-        {sel ? (
-          <>
-            <code className="sig">{sel.sig}</code>
-            <p>{sel.doc}</p>
-            <div className="cost">
-              <span>cost</span> {sel.cost}
-            </div>
-            {sel.args?.length ? (
-              <form
-                className="args"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  runSel();
-                }}
-              >
-                {sel.args.map((a, i) => (
-                  <label key={a.name}>
-                    <span>{a.name}</span>
-                    {a.kind === "choice" ? (
-                      <select
-                        value={args[i] ?? ""}
-                        onChange={(e) => setArgs((x) => x.map((v, j) => (j === i ? e.target.value : v)))}
-                      >
-                        {a.options!.map((o) => (
-                          <option key={o}>{o}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        value={args[i] ?? ""}
-                        placeholder={a.hint}
-                        spellCheck={false}
-                        onChange={(e) => setArgs((x) => x.map((v, j) => (j === i ? e.target.value : v)))}
-                      />
-                    )}
-                  </label>
-                ))}
-                <button type="submit" className="run">
-                  Run {sel.name}
-                </button>
-              </form>
-            ) : (
-              <button className="run" onClick={runSel}>
-                Run {sel.name} again
-              </button>
-            )}
-          </>
-        ) : (
-          <p className="detail-empty">
-            Choose a method. Methods without arguments run immediately; the
-            others open a small form with sensible defaults.
-          </p>
-        )}
-      </div>
-      <p className="keys">
-        <kbd>space</kbd> play · <kbd>←</kbd>
-        <kbd>→</kbd> step · <kbd>ctrl z</kbd> undo
-      </p>
-    </div>
   );
 }

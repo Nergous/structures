@@ -1,6 +1,6 @@
 import { sizeReads } from "../core/common";
 import { freshInt, list, okRet, parseInt1, parseInts, randInts, rec } from "../core/rec";
-import type { StructureDef, ViewProps } from "../core/types";
+import type { StructureDef } from "../core/types";
 import {
   iterate,
   live,
@@ -10,15 +10,11 @@ import {
   ringList,
   ringMemory,
   ringOf,
-  RingView,
   type RingS,
 } from "./ring";
 
 const R = "q *Queue[T]";
 
-function View({ f }: ViewProps<RingS>) {
-  return <RingView f={f} front="head · Pop" back="back · Push" />;
-}
 
 export const queue: StructureDef<RingS> = {
   id: "queue",
@@ -43,7 +39,6 @@ export const queue: StructureDef<RingS> = {
     ["head", s.head],
     ["front", s.len ? s.data[s.head]!.v : "—"],
   ],
-  View,
   methods: [
     {
       name: "New",

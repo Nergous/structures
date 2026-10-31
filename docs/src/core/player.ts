@@ -104,6 +104,8 @@ export function usePlayer<S>(def: StructureDef<S>) {
     runFrom,
     undo,
     canUndo: history.current.length > 0,
+    /** States before each recent call, oldest first. */
+    history: history.current,
     step,
     toggle,
     jump: (i: number) => {

@@ -1,5 +1,3 @@
-import type { FC } from "react";
-
 /** Visual emphasis applied to a cell or slot in one frame. */
 export type Tone =
   | "new" // just written
@@ -78,7 +76,6 @@ export interface StructureDef<S> {
   seed: () => S;
   stats: (s: S) => [string, string | number][];
   methods: MethodDef<S>[];
-  View: FC<ViewProps<S>>;
 }
 
 export const GROUP_LABEL: Record<Group, string> = {

@@ -11,8 +11,7 @@ import {
   rec,
   type Rec,
 } from "../core/rec";
-import type { Cell, StructureDef, Tone, ViewProps } from "../core/types";
-import { ArrayView, CapBar, ColumnIndex, Label, Pointer, Stage, Tray, slotPos } from "../ui/viz";
+import type { Cell, StructureDef, Tone } from "../core/types";
 
 export interface StackS {
   data: Cell[];
@@ -42,49 +41,6 @@ const topMarks = (s: StackS, n: number, t: Tone) => {
   return m;
 };
 
-function View({ f }: ViewProps<StackS>) {
-  const s = f.s;
-  const rows = Math.max(s.cap, 7);
-  const cw = s.cap > 12 ? 34 : 44;
-  const gap = 6;
-  const x0 = 120;
-  const y0 = 30;
-  const h = rows * (cw + gap) + 62;
-  const geo = { x: x0, y: y0 + (rows - Math.max(s.cap, 1)) * (cw + gap), cw, gap, vertical: true, rows: s.cap };
-  const top = s.data.length - 1;
-  const topPos = top >= 0 ? slotPos(top, geo) : null;
-  return (
-    <div className="view">
-      <Stage w={560} h={h}>
-        <Label x={x0 - 6} y={h - 22} className="axis">
-          data[0] · bottom
-        </Label>
-        <ColumnIndex x={x0 - 30} y={geo.y} cap={s.cap} cw={cw} gap={gap} />
-        <ArrayView
-          {...geo}
-          cells={s.data}
-          cap={s.cap}
-          marks={f.marks}
-        />
-        {topPos && (
-          <Pointer id="top" x={x0 + cw + 14} y={topPos.y + cw / 2 - 12} label="top = data[len-1]" dir="left" />
-        )}
-        {s.cap > s.data.length && (
-          <Label x={x0 + cw + 18} y={slotPos(s.cap - 1, geo).y + 4} className="note-spare">
-            spare capacity ({s.cap - s.data.length})
-          </Label>
-        )}
-        {s.cap === 0 && (
-          <Label x={x0} y={y0 + 40} className="note-spare">
-            data == nil — no array allocated
-          </Label>
-        )}
-      </Stage>
-      <CapBar len={s.data.length} cap={s.cap} />
-      <Tray f={f} />
-    </div>
-  );
-}
 
 export const stack: StructureDef<StackS> = {
   id: "stack",
@@ -108,7 +64,6 @@ export const stack: StructureDef<StackS> = {
     ["cap", s.cap],
     ["top", s.data.length ? s.data[s.data.length - 1].v : "—"],
   ],
-  View,
   methods: [
     {
       name: "New",
