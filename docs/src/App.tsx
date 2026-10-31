@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePlayer } from "./core/player";
 import { GoPanic } from "./core/rec";
 import { GROUP_LABEL, type Frame, type Group, type MethodDef, type StructureDef } from "./core/types";
@@ -30,7 +30,7 @@ export default function App() {
   const def = STRUCTURES.find((d) => d.id === id) ?? STRUCTURES[0];
   const [addrs, setAddrs] = useState(true);
   return (
-    <Mem.Provider value={{ addrs, still: STILL }}>
+    <Mem.Provider value={{ addrs, still: STILL, w: guessWidth() }}>
       <div className={"app" + (STILL ? " still" : "")}>
         <header className="top">
           <a className="brand" href={REPO} target="_blank" rel="noreferrer">
@@ -110,8 +110,28 @@ interface Entry {
 
 let booted = false; // StrictMode runs effects twice in dev
 
+/** Content width before the first measurement (matches .main padding). */
+const guessWidth = () => Math.min(1180, innerWidth) - (innerWidth <= 900 ? 36 : 80);
+
+/** Tracks the content width of the page column. */
+function useWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(guessWidth);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(Math.round(el.clientWidth)));
+    ro.observe(el);
+    setW(Math.round(el.clientWidth));
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
+
 function Workbench<S>({ def, meta, addrs, setAddrs }: { def: StructureDef<S>; meta: Meta<S>; addrs: boolean; setAddrs: (b: boolean) => void }) {
   const p = usePlayer(def);
+  const mem = useContext(Mem);
+  const [probe, width] = useWidth();
   const [log, setLog] = useState<Entry[]>([]);
   const [src, setSrc] = useState("");
   const [all, setAll] = useState(false);
@@ -245,7 +265,10 @@ function Workbench<S>({ def, meta, addrs, setAddrs }: { def: StructureDef<S>; me
         </label>
       </section>
 
-      <View f={f} base={addrOf(gen)} />
+      <div ref={probe} className="probe" />
+      <Mem.Provider value={{ ...mem, w: width }}>
+        <View f={f} base={addrOf(gen)} />
+      </Mem.Provider>
 
       {ghost && (
         <section className="ghost">
